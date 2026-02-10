@@ -31,12 +31,10 @@
                 </div>
                 <div class="day-number" id="dayNum">00</div>
                 <div class="day-name" id="dayName">...</div>
-                
                 <div class="divider"></div>
-                
                 <div class="section-block">
                     <div class="label">Задачи на сегодня:</div>
-                    <div id="todayTasks" class="task-list">Загрузка плана...</div>
+                    <div id="todayTasks" class="task-list">Загрузка...</div>
                 </div>
             </div>
         </div>
@@ -51,13 +49,8 @@
         <h2 class="view-title">График работ</h2>
         <div class="table-wrapper">
             <table id="yearTable">
-                <thead>
-                    <tr id="tableHeader">
-                        <th>Растение</th>
-                        </tr>
-                </thead>
-                <tbody id="tableBody">
-                    </tbody>
+                <thead><tr id="tableHeader"><th>Растение</th></tr></thead>
+                <tbody id="tableBody"></tbody>
             </table>
         </div>
         <div class="legend-mini">
@@ -72,9 +65,7 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js')
-        .then(reg => console.log('SW зарегистрирован!'))
-        .catch(err => console.error('Ошибка SW:', err));
+      navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
     });
   }
 </script>

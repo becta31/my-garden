@@ -2,8 +2,15 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>My Garden ERP</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Мой Сад">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/192/potted-plant.png">
+    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -24,10 +31,12 @@
                 </div>
                 <div class="day-number" id="dayNum">00</div>
                 <div class="day-name" id="dayName">...</div>
+                
                 <div class="divider"></div>
+                
                 <div class="section-block">
-                    <div class="label">Что сделать сегодня:</div>
-                    <div id="todayTasks" class="task-list"></div>
+                    <div class="label">Задачи на сегодня:</div>
+                    <div id="todayTasks" class="task-list">Загрузка плана...</div>
                 </div>
             </div>
         </div>
@@ -39,15 +48,16 @@
     </div>
 
     <div id="view-year" class="view-section" style="display:none;">
-        <h2 class="view-title">График на год</h2>
+        <h2 class="view-title">График работ</h2>
         <div class="table-wrapper">
             <table id="yearTable">
                 <thead>
                     <tr id="tableHeader">
                         <th>Растение</th>
-                    </tr>
+                        </tr>
                 </thead>
-                <tbody id="tableBody"></tbody>
+                <tbody id="tableBody">
+                    </tbody>
             </table>
         </div>
         <div class="legend-mini">
@@ -58,5 +68,16 @@
 
 <script src="data.js"></script>
 <script src="script.js"></script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('SW зарегистрирован!'))
+        .catch(err => console.error('Ошибка SW:', err));
+    });
+  }
+</script>
+
 </body>
 </html>

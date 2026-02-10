@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Plant Care</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f4f7f6; padding: 15px; }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); max-width: 500px; margin: auto; }
+        h1 { color: #2d5a27; font-size: 22px; text-align: center; }
+        .row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .info { display: flex; flex-direction: column; }
+        .plant-name { font-weight: 600; font-size: 16px; }
+        .action { font-size: 13px; color: #666; }
+        input[type="checkbox"] { width: 22px; height: 22px; accent-color: #2d5a27; }
+        .status-done { opacity: 0.5; text-decoration: line-through; }
+        .footer { font-size: 11px; text-align: center; color: #999; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>🌿 Уход за растениями</h1>
+    <div id="plant-list">
+        </div>
+    <div class="footer">Данные сохраняются в браузере локально</div>
+    <button onclick="resetData()" style="width:100%; margin-top:15px; border:none; background:none; color:#999; font-size:12px; cursor:pointer;">Сбросить все отметки</button>
+</div>
+
+<script>
+    const plants = [
+        { name: "Лимоны", task: "Опрыскивание (ежедневно)" },
+        { name: "Орхидея", task: "Полив (раз в неделю)" },
+        { name: "Фиалки / Глоксиния", task: "Нижний полив (раз в неделю)" },
+        { name: "Замиокулькас / Нолина", task: "Полив (раз в 2 недели)" },
+        { name: "Адениум / Кактусы", task: "Полив (раз в 3 недели)" }
+    ];
+
+    function render() {
+        const container = document.getElementById('plant-list');
+        container.innerHTML = plants.map((p, i) => `
+            <div class="row ${localStorage.getItem('p'+i) ? 'status-done' : ''}">
+                <div class="info">
+                    <span class="plant-name">${p.name}</span>
+                    <span class="action">${p.task}</span>
+                </div>
+                <input type="checkbox" ${localStorage.getItem('p'+i) ? 'checked' : ''} onchange="toggle(${i})">
+            </div>
+        `).join('');
+    }
+
+    function toggle(i) {
+        if (localStorage.getItem('p'+i)) localStorage.removeItem('p'+i);
+        else localStorage.setItem('p'+i, 'done');
+        render();
+    }
+
+    function resetData() {
+        localStorage.clear();
+        render();
+    }
+
+    render();
+</script>
+
+</body>
+</html>

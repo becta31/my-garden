@@ -3,28 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Мой Отрывной Календарь</title>
+    <title>Агро-Календарь</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class="calendar-sheet" id="sheet">
-    <div class="month" id="monthName">МЕСЯЦ</div>
-    
-    <div class="day-number" id="dayNum">00</div>
-    
-    <div class="day-name" id="dayName">День недели</div>
-
-    <div class="action-box">
-        <span class="action-title">План на сегодня:</span>
-        <div id="taskList">Загрузка плана...</div>
+<div class="calendar-wrapper">
+    <div class="binder-rings">
+        <div class="ring"></div>
+        <div class="ring"></div>
     </div>
 
-    <div class="footer-info">
-        Ближайший уход за растениями на СВ и ЮЗ
+    <div class="calendar-sheet" id="sheet">
+        <div class="header-red">
+            <span id="monthName">МЕСЯЦ</span>
+            <span id="yearNum">2026</span>
+        </div>
+        
+        <div class="day-number" id="dayNum">00</div>
+        <div class="day-name" id="dayName">День недели</div>
+
+        <div class="status-legend">
+            <span>💧 Полив</span>
+            <span>💊 Корм</span>
+            <span>✂️ Обрезка</span>
+            <span>🪴 Грунт</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-block">
+            <div class="label">Сегодня по плану:</div>
+            <div id="todayTasks" class="task-list">Загрузка...</div>
+        </div>
+
+        <div class="section-block warning-block" id="seasonalBlock" style="display:none;">
+            <div class="label">⚠️ Внимание (Сезон/Климат):</div>
+            <div id="seasonalAdvice" class="advice-text"></div>
+        </div>
+
+        <div class="section-block next-event">
+            <div class="label">Завтра:</div>
+            <div id="nextTaskInfo" class="next-info">...</div>
+        </div>
     </div>
 </div>
 
+<script src="data.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
+

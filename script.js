@@ -1,98 +1,92 @@
+// 1. ПЕРЕКЛЮЧЕНИЕ ЭКРАНОВ
+function showView(viewName) {
+    document.querySelectorAll('.view-section').forEach(v => v.style.display = 'none');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    
+    document.getElementById('view-' + viewName).style.display = 'block';
+    document.getElementById('btn-' + viewName).classList.add('active');
+    
+    if (viewName === 'collection') renderCollection();
+    if (viewName === 'year') renderYearView();
+}
+
+// 2. ОБЗОР ВСЕХ РАСТЕНИЙ
+function renderCollection() {
+    const list = document.getElementById('collectionList');
+    list.innerHTML = "";
+    plantsData.forEach(p => {
+        const lastLog = p.history && p.history.length > 0 ? p.history[p.history.length - 1] : { date: "-", event: "Нет записей" };
+        list.innerHTML += `
+            <div class="plant-card">
+                <h3>${p.name} <span class="category-tag">${p.category}</span></h3>
+                <div class="info-item"><b>📍 Место:</b> ${p.location}</div>
+                <div class="info-item"><b>💧 Полив:</b> ${p.waterFreq === 1 ? 'каждый день' : 'раз в ' + p.waterFreq + ' дн.'}</div>
+                <div class="history-box"><b>Последнее:</b> ${lastLog.date} — ${lastLog.event}</div>
+            </div>`;
+    });
+}
+
+// 3. ТАБЛИЦА НА ГОД
+function renderYearView() {
+    const monthsShort = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+    const currentMonth = new Date().getMonth();
+    
+    const header = document.getElementById('tableHeader');
+    header.innerHTML = '<th>Растение</th>' + monthsShort.map((m, i) => 
+        `<th class="${i === currentMonth ? 'current-month-col' : ''}">${m}</th>`
+    ).join('');
+
+    const body = document.getElementById('tableBody');
+    body.innerHTML = "";
+    plantsData.forEach(p => {
+        let row = `<tr><td>${p.name}</td>`;
+        for (let m = 0; m < 12; m++) {
+            let icons = "";
+            let isActive = false;
+            if (p.feedMonths && p.feedMonths.includes(m)) { icons += "💊"; isActive = true; }
+            if (p.pruneMonths && p.pruneMonths.includes(m)) { icons += "✂️"; isActive = true; }
+            if (p.repotMonths && p.repotMonths.includes(m)) { icons += "🪴"; isActive = true; }
+            row += `<td class="${isActive ? 'cell-active' : ''} ${m === currentMonth ? 'current-month-col' : ''}">${icons}</td>`;
+        }
+        row += "</tr>";
+        body.innerHTML += row;
+    });
+}
+
+// 4. ПЛАН НА СЕГОДНЯ
 function updateCalendar() {
     const now = new Date();
     const d = now.getDate();
-    const m = now.getMonth(); // 0 = Январь
-    const y = now.getFullYear();
-
-    // 1. Установка даты в шапке
+    const m = now.getMonth();
     const monthsNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-    const daysNames = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-
+    
     document.getElementById('monthName').innerText = monthsNames[m];
-    document.getElementById('yearNum').innerText = y;
+    document.getElementById('yearNum').innerText = now.getFullYear();
     document.getElementById('dayNum').innerText = d;
-    document.getElementById('dayName').innerText = daysNames[now.getDay()];
+    document.getElementById('dayName').innerText = ['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'][now.getDay()];
 
-    // Красим воскресенье
-    if (now.getDay() === 0) document.getElementById('sheet').classList.add('is-holiday');
-    else document.getElementById('sheet').classList.remove('is-holiday');
-
-    // 2. Обработка списка растений из data.js
-    let tasksHTML = "";
-    let seasonalAdviceHTML = "";
-
-    // plantsData берется из подключенного файла data.js
+    let tasks = "";
     plantsData.forEach(p => {
-        let plantActions = [];
-
-        // --- ЛОГИКА ПОЛИВА ---
-        // Если частота 1 (каждый день) ИЛИ сегодня день полива по графику
+        // Логика полива
         if (p.waterFreq === 1 || d % p.waterFreq === 0) {
-            plantActions.push(`<span class="tag">💧</span>Полив / Осмотр`);
+            tasks += `<div style="text-align:left; margin-bottom:8px;">✅ <b>${p.name}:</b> Полив</div>`;
             
-            // --- ЛОГИКА УДОБРЕНИЯ ---
-            // Удобряем только в день полива И если текущий месяц есть в списке "месяцев кормежки"
+            // Подкормка (если месяц совпадает и сегодня день полива)
             if (p.feedMonths && p.feedMonths.includes(m)) {
-                // Доп. фильтр: не удобрять каждый день (для лимонов) - только 1-го и 15-го числа
-                if (p.waterFreq === 1 && d !== 1 && d !== 15) {
-                    // пропускаем
-                } else {
-                    plantActions.push(`<span class="tag">💊</span>Подкормка: ${p.feedNote}`);
+                // Для тех, кто поливается каждый день, кормим 1 и 15 числа
+                if (p.waterFreq > 1 || (d === 1 || d === 15)) {
+                    tasks += `<div style="text-align:left; color: #d35400; margin-bottom:12px; padding-left: 20px; font-size: 13px;">🧪 ${p.feedNote || 'Подкормка'}</div>`;
                 }
             }
         }
-
-        // --- ЛОГИКА ПЕРЕСАДКИ (Напоминание с 1 по 3 число месяца) ---
-        if (p.repotMonths && p.repotMonths.includes(m) && d <= 3) {
-            plantActions.push(`<span class="tag">🪴</span>ПЛАН: ${p.repotNote || 'Пересадка'}`);
-        }
-
-        // --- ЛОГИКА ОБРЕЗКИ (Напоминание с 5 по 7 число месяца) ---
-        if (p.pruneMonths && p.pruneMonths.includes(m) && d >= 5 && d <= 7) {
-            plantActions.push(`<span class="tag">✂️</span>ПЛАН: ${p.pruneNote || 'Обрезка'}`);
-        }
-
-        // Если есть действия, добавляем строку в HTML
-        if (plantActions.length > 0) {
-            tasksHTML += `<div class="task-row"><strong>${p.name}:</strong><br>${plantActions.join('<br>')}</div>`;
-        }
-
-        // --- СБОР СОВЕТОВ (ПРЕДУПРЕЖДЕНИЯ) ---
-        // Показываем предупреждение, если оно критично для текущего месяца
-        if (p.warning) {
-            // Для Цитрусов и Орхидей зимой (месяцы 0, 1, 10, 11) напоминаем про влажность
-            if ((m <= 1 || m >= 10) && (p.name.includes("Лимон") || p.name.includes("Орхидея"))) {
-                seasonalAdviceHTML = `⚠️ <b>Зима (${p.name}):</b> ${p.warning}`;
-            }
-            // Для Адениума весной (месяц 2, 3) напоминаем про обрезку
-            if ((m === 2 || m === 3) && p.name.includes("Адениум")) {
-                seasonalAdviceHTML = `ℹ️ <b>Весна (${p.name}):</b> ${p.pruneNote}`;
-            }
-            // Для Каланхоэ в октябре (месяц 9)
-            if (m === 9 && p.name.includes("Каланхоэ")) {
-                seasonalAdviceHTML = `🍂 <b>Октябрь:</b> ${p.warning}`;
-            }
+        // Обрезка/Пересадка (напоминание в начале месяца)
+        if (d <= 5) {
+            if (p.repotMonths && p.repotMonths.includes(m)) tasks += `<div style="text-align:left; color: #27ae60; font-size: 13px;">🪴 <b>${p.name}:</b> План пересадки</div>`;
+            if (p.pruneMonths && p.pruneMonths.includes(m)) tasks += `<div style="text-align:left; color: #2980b9; font-size: 13px;">✂️ <b>${p.name}:</b> План обрезки</div>`;
         }
     });
-
-    // Вывод задач
-    document.getElementById('todayTasks').innerHTML = tasksHTML || "Сегодня плановых работ нет 🌿";
-
-    // Вывод советов
-    if (seasonalAdviceHTML) {
-        document.getElementById('seasonalBlock').style.display = 'block';
-        document.getElementById('seasonalAdvice').innerHTML = seasonalAdviceHTML;
-    } else {
-        document.getElementById('seasonalBlock').style.display = 'none';
-    }
-
-    // 3. Прогноз на завтра (просто для инфо)
-    const tomorrow = d + 1;
-    document.getElementById('nextTaskInfo').innerHTML = `Завтра (${tomorrow}-го) проверим влажность и освещение.`;
+    document.getElementById('todayTasks').innerHTML = tasks || "Сегодня по плану отдых 🌿";
 }
 
 // Запуск
 updateCalendar();
-
-// Обновление каждый час
-setInterval(updateCalendar, 3600000);

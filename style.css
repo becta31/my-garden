@@ -2,6 +2,7 @@
     --bg: #1a1a1a;
     --card-bg: #fdfbf7;
     --accent: #27ae60;
+    --blue: #2980b9;
     --red: #c0392b;
     --text: #2c3e50;
 }
@@ -9,10 +10,7 @@
 body {
     background-color: var(--bg);
     font-family: -apple-system, system-ui, sans-serif;
-    color: white;
-    margin: 0;
-    display: flex;
-    justify-content: center;
+    color: white; margin: 0; display: flex; justify-content: center;
 }
 
 .app-container { width: 100%; max-width: 500px; padding: 15px; }
@@ -21,27 +19,31 @@ body {
 .main-nav { display: flex; gap: 8px; margin-bottom: 20px; position: sticky; top: 10px; z-index: 100; }
 .nav-btn {
     flex: 1; padding: 12px 5px; border: none; border-radius: 10px;
-    background: #333; color: #888; font-weight: bold; cursor: pointer; font-size: 13px;
+    background: #333; color: #888; font-weight: bold; cursor: pointer;
 }
 .nav-btn.active { background: var(--accent); color: white; }
 
-/* Календарь на сегодня */
-.calendar-sheet {
-    background: var(--card-bg); color: var(--text); padding: 25px;
-    border-radius: 15px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-}
+/* Аналитика */
+.stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+.stat-card { padding: 15px; border-radius: 12px; text-align: center; background: linear-gradient(145deg, #2ecc71, #27ae60); box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+.stat-card.blue { background: linear-gradient(145deg, #3498db, #2980b9); }
+.stat-value { display: block; font-size: 24px; font-weight: bold; color: white; }
+.stat-label { font-size: 10px; color: rgba(255,255,255,0.8); text-transform: uppercase; }
+
+/* Карточка на сегодня */
+.calendar-sheet { background: var(--card-bg); color: var(--text); padding: 25px; border-radius: 15px; text-align: center; }
 .header-red { display: flex; justify-content: space-between; color: var(--red); font-weight: bold; border-bottom: 2px solid var(--red); }
 .day-number { font-size: 90px; font-weight: bold; line-height: 1; margin: 15px 0; }
 .divider { height: 1px; background: #ddd; margin: 15px 0; }
-.label { font-size: 11px; color: #999; text-transform: uppercase; text-align: left; margin-bottom: 10px; }
+.label { font-size: 11px; color: #999; text-transform: uppercase; text-align: left; }
 
-/* Карточки Сада */
+/* Сетка Сада */
 .collection-grid { display: grid; gap: 12px; }
-.plant-card { background: var(--card-bg); color: var(--text); padding: 15px; border-radius: 12px; border-left: 6px solid var(--accent); }
+.plant-card { background: var(--card-bg); color: var(--text); padding: 15px; border-radius: 12px; border-left: 6px solid var(--accent); text-align: left;}
 .plant-card h3 { margin: 0 0 8px 0; display: flex; justify-content: space-between; font-size: 16px; }
-.category-tag { font-size: 9px; background: #e0e0e0; padding: 2px 6px; border-radius: 4px; color: #666; }
+.category-tag { font-size: 9px; background: #e0e0e0; padding: 2px 6px; border-radius: 4px; }
 .info-item { font-size: 13px; margin-bottom: 3px; }
-.history-box { margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 12px; color: #555; }
+.history-box { margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 12px; }
 
 /* Таблица Года */
 .table-wrapper { overflow-x: auto; background: var(--card-bg); border-radius: 12px; color: var(--text); }

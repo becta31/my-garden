@@ -3,48 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Агро-Календарь</title>
+    <title>My Garden ERP</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class="calendar-wrapper">
-    <div class="binder-rings">
-        <div class="ring"></div>
-        <div class="ring"></div>
+<div class="app-container">
+    <nav class="main-nav">
+        <button onclick="showView('today')" id="btn-today" class="nav-btn active">📅 План</button>
+        <button onclick="showView('collection')" id="btn-collection" class="nav-btn">🌿 Сад</button>
+        <button onclick="showView('year')" id="btn-year" class="nav-btn">🗓️ Год</button>
+    </nav>
+
+    <div id="view-today" class="view-section">
+        <div class="calendar-wrapper">
+            <div class="calendar-sheet" id="sheet">
+                <div class="header-red">
+                    <span id="monthName">МЕСЯЦ</span>
+                    <span id="yearNum">2026</span>
+                </div>
+                <div class="day-number" id="dayNum">00</div>
+                <div class="day-name" id="dayName">...</div>
+                <div class="divider"></div>
+                <div class="section-block">
+                    <div class="label">Что сделать сегодня:</div>
+                    <div id="todayTasks" class="task-list"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="calendar-sheet" id="sheet">
-        <div class="header-red">
-            <span id="monthName">МЕСЯЦ</span>
-            <span id="yearNum">2026</span>
+    <div id="view-collection" class="view-section" style="display:none;">
+        <h2 class="view-title">Моя коллекция</h2>
+        <div id="collectionList" class="collection-grid"></div>
+    </div>
+
+    <div id="view-year" class="view-section" style="display:none;">
+        <h2 class="view-title">График на год</h2>
+        <div class="table-wrapper">
+            <table id="yearTable">
+                <thead>
+                    <tr id="tableHeader">
+                        <th>Растение</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
         </div>
-        
-        <div class="day-number" id="dayNum">00</div>
-        <div class="day-name" id="dayName">День недели</div>
-
-        <div class="status-legend">
-            <span>💧 Полив</span>
-            <span>💊 Корм</span>
-            <span>✂️ Обрезка</span>
-            <span>🪴 Грунт</span>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="section-block">
-            <div class="label">Сегодня по плану:</div>
-            <div id="todayTasks" class="task-list">Загрузка...</div>
-        </div>
-
-        <div class="section-block warning-block" id="seasonalBlock" style="display:none;">
-            <div class="label">⚠️ Внимание (Сезон/Климат):</div>
-            <div id="seasonalAdvice" class="advice-text"></div>
-        </div>
-
-        <div class="section-block next-event">
-            <div class="label">Завтра:</div>
-            <div id="nextTaskInfo" class="next-info">...</div>
+        <div class="legend-mini">
+            <span>💊 Корм</span> <span>✂️ Срез</span> <span>🪴 Грунт</span>
         </div>
     </div>
 </div>
@@ -53,4 +60,3 @@
 <script src="script.js"></script>
 </body>
 </html>
-

@@ -27,3 +27,11 @@ jobs:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
           CITY_NAME: ${{ secrets.CITY_NAME }}
         run: python send_tasks.py
+
+      # ЭТОТ БЛОК СРАБОТАЕТ ПРИ ОШИБКЕ
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
+          -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+          -d text="⚠️ ВНИМАНИЕ: Бот-садовод упал с ошибкой! Проверь логи в GitHub Actions: https://github.com/${{ github.repository }}/actions"

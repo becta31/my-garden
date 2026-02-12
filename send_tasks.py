@@ -11,17 +11,17 @@ LEIKA_VOLUME = 1.0
 def get_ai_advice(plants_info, weather):
     api_key = os.getenv('GEMINI_API_KEY')
     if not api_key: 
-        return "ИИ-совет недоступен (ключ не найден в настройках GitHub)."
+        return "ИИ-совет недоступен (ключ не найден)."
     
-    # Промпт для агронома
     prompt = (
         f"Ты эксперт-растениевод. Погода: {weather}. Мои растения: {plants_info}. "
-        f"В наличии: Осмокот (11-11-18), Bona Forte, Янтарная кислота. Лейка 1л. "
+        f"В наличии: Осмокот, Bona Forte, Янтарная кислота. Лейка 1л. "
         f"Дай 1 короткий совет по уходу на сегодня (2 предложения). "
-        f"Учти мороз и наличие сеянцев. Пиши кратко и профессионально."
+        f"Учти мороз и наличие молодых сеянцев. Пиши профессионально и кратко."
     )
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # Используем стабильную версию v1 и модель gemini-1.5-flash
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
     headers = {'Content-Type': 'application/json'}
     payload = {
         "contents": [{
@@ -30,21 +30,14 @@ def get_ai_advice(plants_info, weather):
     }
     
     try:
-        # Тайм-аут увеличен до 30 секунд для надежности
         response = requests.post(url, headers=headers, json=payload, timeout=30)
-        
         if response.status_code == 200:
             result = response.json()
-            # Извлекаем текст из структуры ответа Gemini
-            try:
-                advice = result['candidates'][0]['content']['parts'][0]['text']
-                return advice.strip()
-            except (KeyError, IndexWarning):
-                return "Агроном задумался и не выдал ответ. Попробуй завтра."
+            return result['candidates'][0]['content']['parts'][0]['text'].strip()
         else:
-            return f"Агроном занят (Ошибка {response.status_code})."
+            return f"Агроном занят (Код {response.status_code})."
     except Exception as e:
-        return f"Ошибка связи с ИИ: {str(e)[:50]}"
+        return f"Ошибка связи: {str(e)[:50]}"
 
 def get_weather():
     api_key = os.getenv('OPENWEATHER_API_KEY')
@@ -75,7 +68,6 @@ def get_tasks():
         raw_data = re.sub(r'//.*', '', match.group(1))
         plants = ast.literal_eval(raw_data)
         
-        # Получаем магию ИИ
         ai_advice = get_ai_advice(str(plants), weather_info)
 
         now = datetime.now()
@@ -105,9 +97,9 @@ def get_tasks():
                 msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
                 has_tasks = True
 
-        return msg if has_tasks else f"🌿 На сегодня задач нет!"
+        return msg if has_tasks else f"🌿 Сегодня только отдых!"
     except Exception as e:
-        return f"❌ Ошибка в скрипте: {str(e)}"
+        return f"❌ Ошибка: {str(e)}"
 
 def send_to_telegram(text):
     token = os.getenv('TELEGRAM_TOKEN')
@@ -116,17 +108,8 @@ def send_to_telegram(text):
     
     if token and chat_id:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        keyboard = {
-            "inline_keyboard": [[
-                {"text": "✅ Сделано!", "url": f"https://github.com/{repo}/actions"}
-            ]]
-        }
-        payload = {
-            "chat_id": chat_id, 
-            "text": text, 
-            "parse_mode": "Markdown",
-            "reply_markup": keyboard
-        }
+        keyboard = {"inline_keyboard": [[{"text": "✅ Сделано!", "url": f"https://github.com/{repo}/actions"}]]}
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown", "reply_markup": keyboard}
         requests.post(url, json=payload)
 
 if __name__ == "__main__":

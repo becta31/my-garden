@@ -2,53 +2,52 @@ import os
 import requests
 import re
 import ast
-import time
-import random
 from datetime import datetime
 
 def get_ai_advice(plants_info, weather):
-    # .strip() удаляет лишние пробелы и переносы строк в начале и конце
     gemini_key = os.getenv('GEMINI_API_KEY', '').strip()
     hf_token = os.getenv('HF_API_TOKEN', '').strip()
     
-    prompt = f"Растения: {plants_info}. Погода: {weather}. Ты агроном. Дай ОДИН короткий совет (15 слов) по уходу сегодня."
+    prompt = f"Растения: {plants_info}. Погода: {weather}. Ты агроном. Дай короткий совет (15 слов)."
 
-    # --- ВАРИАНТ 1: GEMINI ---
+    # --- ТЕСТ GEMINI ---
     if gemini_key:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
         try:
-            time.sleep(random.randint(2, 4))
             res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=15)
             if res.status_code == 200:
-                text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
-                return f"{text.replace('*', '')} (G)" # (G) - значит ответил Gemini
+                return res.json()['candidates'][0]['content']['parts'][0]['text'].strip() + " (G)"
+            else:
+                gemini_log = f"G-Err:{res.status_code}" # Например 403 или 400
         except Exception as e:
-            print(f"Gemini error: {e}")
+            gemini_log = "G-Crash"
+    else:
+        gemini_log = "G-None"
 
-    # --- ВАРИАНТ 2: HUGGING FACE ---
+    # --- ТЕСТ HUGGING FACE ---
     if hf_token:
         url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
         headers = {"Authorization": f"Bearer {hf_token}"}
-        payload = {"inputs": f"<s>[INST] {prompt} [/INST]", "parameters": {"max_new_tokens": 50}}
         try:
-            res = requests.post(url, headers=headers, json=payload, timeout=15)
+            res = requests.post(url, headers=headers, json={"inputs": prompt}, timeout=15)
             if res.status_code == 200:
-                raw_text = res.json()[0]['generated_text']
-                clean_text = raw_text.split("[/INST]")[-1].strip()
-                return f"{clean_text.replace('*', '')} (H)" # (H) - значит ответил Hugging Face
-        except Exception as e:
-            print(f"HF error: {e}")
+                return "Совет от HF (H)"
+            else:
+                hf_log = f"H-Err:{res.status_code}"
+        except:
+            hf_log = "H-Crash"
+    else:
+        hf_log = "H-None"
 
-    return "Придерживайтесь стандартного графика полива. (Default)"
+    return f"ИИ недоступен. Логи: {gemini_log} | {hf_log}"
 
 def get_weather():
     api_key = os.getenv('OPENWEATHER_API_KEY', '').strip()
     city = os.getenv('CITY_NAME', 'Moscow').strip()
-    if not api_key: return None
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
         res = requests.get(url, timeout=10).json()
-        return {"temp": res["main"]["temp"], "humidity": res["main"]["humidity"], "desc": res["weather"][0]["description"]}
+        return {"temp": res["main"]["temp"], "desc": res["weather"][0]["description"]}
     except: return None
 
 def get_tasks():
@@ -59,52 +58,29 @@ def get_tasks():
         with open('data.js', 'r', encoding='utf-8') as f:
             content = f.read()
         match = re.search(r'const\s+plantsData\s*=\s*(\[.*\]);', content, re.DOTALL)
-        if not match: return "Ошибка БД"
-        
         clean_js = re.sub(r'//.*', '', match.group(1))
         plants = ast.literal_eval(clean_js)
         
-        names_only = ", ".join([p['name'] for p in plants])
-        ai_advice = get_ai_advice(names_only, w_info)
-
+        ai_advice = get_ai_advice("Коллекция растений", w_info)
         now = datetime.now()
+        
         msg = f"🌿 *САДОВЫЙ ПЛАН ({now.strftime('%d.%m')})*\n\n"
-        if weather:
-            msg += f"🌡 *ПОГОДА:* {weather['temp']}°C | 💧 {weather['humidity']}%\n\n"
+        msg += f"🤖 *СОВЕТ:* _{ai_advice}_\n\n"
+        msg += "─" * 15 + "\n"
         
-        msg += f"🤖 *СОВЕТ АГРОНОМА:* \n_{ai_advice}_\n\n"
-        msg += "─" * 15 + "\n\n"
-
-        has_tasks = False
-        d, m = now.day, now.month - 1
         for p in plants:
-            if p.get('waterFreq') == 1 or d % p.get('waterFreq', 99) == 0:
-                msg += f"📍 *{p['name'].upper()}*\n  💧 ПОЛИВ\n"
-                if m in p.get('feedMonths', []) and (p.get('waterFreq', 1) > 1 or d in [1, 15]):
-                    msg += f"  🧪 {p.get('feedNote')}\n"
-                if "warning" in p: msg += f"⚠️ _{p['warning']}_\n"
-                msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
-                has_tasks = True
+            if now.day % p.get('waterFreq', 99) == 0:
+                msg += f"📍 {p['name']} - ПОЛИВ\n"
         
-        return msg if has_tasks else "🌿 Сегодня отдых!"
+        return msg
     except Exception as e:
         return f"Ошибка: {e}"
 
 def send_to_telegram(text):
     token = os.getenv('TELEGRAM_TOKEN', '').strip()
     chat_id = os.getenv('TELEGRAM_CHAT_ID', '').strip()
-    if not (token and chat_id): return
-    
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    reply_markup = {"inline_keyboard": [[{"text": "✅ Все полито!", "callback_data": "done"}]]}
-    
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "Markdown",
-        "reply_markup": reply_markup
-    }
-    requests.post(url, json=payload, timeout=10)
+    requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"})
 
 if __name__ == "__main__":
     send_to_telegram(get_tasks())

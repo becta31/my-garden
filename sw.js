@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garden-v1';
+const CACHE_NAME = 'garden-v2'; // Поменял v1 на v2 — и телефон скачает всё заново
 const ASSETS = [
   'index.html',
   'style.css',

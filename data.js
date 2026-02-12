@@ -78,8 +78,8 @@ const plantsData = [
         "light": "Очень яркий",
         "waterFreq": 4,
         "feedMonths": [2, 3, 4, 5, 6, 7],
-        "feedNote": "Комплексное для роста",
-        "warning": "Листопадное! Зимой может сбросить часть листвы.",
+        "feedNote": "Комплексное для роста (с марта)",
+        "warning": "Листопадное! Зимой может сбросить часть листвы. В марте — обрезка.",
         "history": []
     },
     { 
@@ -88,7 +88,7 @@ const plantsData = [
         "category": "succulent",
         "location": "Подоконник",
         "light": "Яркий",
-        "waterFreq": 7,
+        "waterFreq": 7, 
         "feedMonths": [4, 5, 6, 7, 8],
         "pruneMonths": [5], 
         "warning": "Октябрь: режим короткого дня для цветения.",
@@ -100,7 +100,7 @@ const plantsData = [
         "category": "flower",
         "location": "Полка",
         "light": "Рассеянный",
-        "waterFreq": 7,
+        "waterFreq": 7, 
         "feedMonths": [3, 4, 5, 6, 7],
         "warning": "Зимой клубень должен спать в темноте и прохладе.",
         "history": []

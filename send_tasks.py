@@ -5,7 +5,7 @@ import ast
 import time
 from datetime import datetime
 
-# Настройки
+# Настройки объема лейки
 LEIKA_VOLUME = 1.0 
 
 def get_ai_advice(plants_info, weather):
@@ -13,19 +13,24 @@ def get_ai_advice(plants_info, weather):
     if not api_key: 
         return "ИИ-совет недоступен (ключ не найден)."
     
+    # Промпт для агронома
     prompt = (
         f"Ты эксперт-агроном. Погода: {weather}. Мои растения: {plants_info}. "
         f"В наличии: Осмокот, Bona Forte, Янтарная кислота. Лейка 1л. "
-        f"Дай 1 короткий совет по уходу (2 предложения). "
-        f"Учти мороз и молодых сеянцев. Пиши без жирного текста и без символов *."
+        f"Дай 1 короткий совет по уходу на сегодня (максимум 2 предложения). "
+        f"Учти мороз и молодых сеянцев. Пиши без символов * и без жирного текста."
     )
     
-    # Используем стабильный эндпоинт v1
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # Используем версию v1beta и модель 1.5-flash (самая стабильная для автоматизации)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     headers = {'Content-Type': 'application/json'}
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }]
+    }
     
-    # ЛОГИКА ПОВТОРОВ (Retry Logic)
+    # Попытки пробить лимиты (Retry Logic)
     for attempt in range(3):
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=30)
@@ -33,13 +38,14 @@ def get_ai_advice(plants_info, weather):
             if response.status_code == 200:
                 result = response.json()
                 text = result['candidates'][0]['content']['parts'][0]['text'].strip()
-                return text.replace('*', '').replace('_', '')
+                # Очищаем ответ от разметки, которая ломает Telegram
+                return text.replace('*', '').replace('_', '').replace('#', '')
             
             elif response.status_code == 429:
                 if attempt < 2:
-                    time.sleep(10) # Ждем 10 секунд перед повтором
+                    time.sleep(10) # Пауза 10 секунд перед повтором
                     continue
-                return "Агроном отдыхает (лимит запросов). Попробуй запустить позже."
+                return "Агроном отдыхает (превышен лимит запросов). Попробуй позже."
             
             else:
                 return f"Агроном занят (Код {response.status_code})."
@@ -70,21 +76,24 @@ def get_tasks():
     weather_info = f"{weather['temp']}°C, {weather['desc']}" if weather else "неизвестна"
     
     try:
+        # Читаем базу данных растений
         with open('data.js', 'r', encoding='utf-8') as f:
             content = f.read()
         
+        # Извлекаем массив данных из JS-файла
         match = re.search(r'const\s+plantsData\s*=\s*(\[.*\]);', content, re.DOTALL)
-        if not match: return "❌ Ошибка: Данные не найдены."
+        if not match: return "❌ Ошибка: Данные в data.js не найдены."
         
         raw_data = re.sub(r'//.*', '', match.group(1))
         plants = ast.literal_eval(raw_data)
         
-        # Получаем совет от ИИ
+        # Запрашиваем совет у ИИ
         ai_advice = get_ai_advice(str(plants), weather_info)
 
         now = datetime.now()
         d, m = now.day, now.month - 1
         
+        # Формируем сообщение
         msg = f"🌿 *САДОВЫЙ ПЛАН ({now.strftime('%d.%m')})*\n\n"
         
         if weather:
@@ -97,8 +106,10 @@ def get_tasks():
         has_tasks = False
         for p in plants:
             tasks = []
+            # Проверка частоты полива
             if p.get('waterFreq') == 1 or d % p.get('waterFreq', 99) == 0:
                 tasks.append("  💧 *ПОЛИВ*")
+                # Проверка подкормки (если месяц подходит и день 1-й или 15-й)
                 if m in p.get('feedMonths', []) and (p.get('waterFreq', 1) > 1 or d in [1, 15]):
                     tasks.append(f"  🧪 *РЕЦЕПТ:* {p.get('feedNote')}\n     _(на {LEIKA_VOLUME}л воды)_")
             
@@ -109,9 +120,9 @@ def get_tasks():
                 msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
                 has_tasks = True
 
-        return msg if has_tasks else f"🌿 Сегодня задач нет!"
+        return msg if has_tasks else f"🌿 Сегодня только отдых!"
     except Exception as e:
-        return f"❌ Ошибка: {str(e)}"
+        return f"❌ Ошибка в скрипте: {str(e)}"
 
 def send_to_telegram(text):
     token = os.getenv('TELEGRAM_TOKEN')
@@ -120,8 +131,17 @@ def send_to_telegram(text):
     
     if token and chat_id:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        keyboard = {"inline_keyboard": [[{"text": "✅ Сделано!", "url": f"https://github.com/{repo}/actions"}]]}
-        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown", "reply_markup": keyboard}
+        keyboard = {
+            "inline_keyboard": [[
+                {"text": "✅ Сделано!", "url": f"https://github.com/{repo}/actions"}
+            ]]
+        }
+        payload = {
+            "chat_id": chat_id, 
+            "text": text, 
+            "parse_mode": "Markdown", 
+            "reply_markup": keyboard
+        }
         requests.post(url, json=payload)
 
 if __name__ == "__main__":

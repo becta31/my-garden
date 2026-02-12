@@ -1,6 +1,7 @@
 function showView(viewName) {
     document.querySelectorAll('.view-section').forEach(v => v.style.display = 'none');
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    
     document.getElementById('view-' + viewName).style.display = 'block';
     document.getElementById('btn-' + viewName).classList.add('active');
     
@@ -11,24 +12,23 @@ function showView(viewName) {
 
 function renderCollection() {
     const list = document.getElementById('collectionList');
+    if (!list) return;
     const d = new Date().getDate();
     const total = plantsData.length;
     const toWater = plantsData.filter(p => p.waterFreq === 1 || d % p.waterFreq === 0).length;
 
-    // Очищаем и рисуем статистику
     list.innerHTML = `
         <div class="stats-container">
             <div class="stat-card"><span class="stat-value">${total}</span><span class="stat-label">В составе</span></div>
             <div class="stat-card blue"><span class="stat-value">${toWater}</span><span class="stat-label">Полить сегодня</span></div>
         </div>`;
 
-    // Рисуем карточки
     plantsData.forEach(p => {
         const lastLog = p.history && p.history.length > 0 ? p.history[p.history.length - 1] : { date: "-", event: "Нет записей" };
         list.innerHTML += `
             <div class="plant-card">
                 <h3>${p.name} <span class="category-tag">${p.category}</span></h3>
-                <div class="info-item"><b>📍 Место:</b> ${p.location}</div>
+                <div class="info-item"><b>📍 Место:</b> ${p.location || 'Не указано'}</div>
                 <div class="info-item"><b>💧 Полив:</b> ${p.waterFreq === 1 ? 'ежедневно' : 'раз в ' + p.waterFreq + ' дн.'}</div>
                 <div class="history-box"><b>Последнее:</b> ${lastLog.date} — ${lastLog.event}</div>
             </div>`;
@@ -38,9 +38,11 @@ function renderCollection() {
 function renderYearView() {
     const monthsShort = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
     const currentMonth = new Date().getMonth();
-    document.getElementById('tableHeader').innerHTML = '<th>Растение</th>' + monthsShort.map((m, i) => `<th class="${i === currentMonth ? 'current-month-col' : ''}">${m}</th>`).join('');
-
+    const header = document.getElementById('tableHeader');
     const body = document.getElementById('tableBody');
+    
+    header.innerHTML = '<th>Растение</th>' + monthsShort.map((m, i) => `<th class="${i === currentMonth ? 'current-month-col' : ''}">${m}</th>`).join('');
+
     body.innerHTML = "";
     plantsData.forEach(p => {
         let row = `<tr><td>${p.name}</td>`;
@@ -77,7 +79,9 @@ function updateCalendar() {
             if (p.pruneMonths && p.pruneMonths.includes(m)) tasks += `<div class="task-item plan-prune">✂️ <b>${p.name}:</b> План обрезки</div>`;
         }
     });
-    document.getElementById('todayTasks').innerHTML = tasks || '<div class="no-tasks">Сегодня по плану отдых 🌿</div>';
+    document.getElementById('todayTasks').innerHTML = tasks || '<div class="no-tasks">Сегодня отдых 🌿</div>';
 }
 
-document.addEventListener('DOMContentLoaded', updateCalendar);
+document.addEventListener('DOMContentLoaded', () => {
+    updateCalendar();
+});

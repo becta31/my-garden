@@ -37,6 +37,16 @@ body {
 .divider { height: 1px; background: #ddd; margin: 15px 0; }
 .label { font-size: 11px; color: #999; text-transform: uppercase; text-align: left; }
 
+/* Стили задач (ТО ЧТО ТЫ СПРАШИВАЛ) */
+.task-item {
+    text-align: left; margin-bottom: 12px; padding: 10px;
+    border-radius: 8px; background: #fdf6e3; border-left: 4px solid var(--accent);
+}
+.task-main { font-weight: bold; color: var(--text); }
+.task-sub { color: #d35400; font-size: 13px; margin-top: 4px; padding-left: 20px; font-style: italic; }
+.plan-repot { border-left-color: var(--accent); background: #e8f8f5; }
+.plan-prune { border-left-color: var(--blue); background: #ebf5fb; }
+
 /* Сетка Сада */
 .collection-grid { display: grid; gap: 12px; }
 .plant-card { background: var(--card-bg); color: var(--text); padding: 15px; border-radius: 12px; border-left: 6px solid var(--accent); text-align: left;}

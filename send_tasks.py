@@ -15,13 +15,13 @@ def get_ai_advice(plants_info, weather):
     
     prompt = (
         f"Ты эксперт-растениевод. Погода: {weather}. Мои растения: {plants_info}. "
-        f"В наличии: Осмокот, Bona Forte, Янтарная кислота. Лейка 1л. "
+        f"В наличии: Осмокот (11-11-18), Bona Forte, Янтарная кислота. Лейка 1л. "
         f"Дай 1 короткий совет по уходу на сегодня (2 предложения). "
         f"Учти мороз и наличие молодых сеянцев. Пиши профессионально и кратко."
     )
     
-    # Используем стабильную версию v1 и модель gemini-1.5-flash
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # URL для модели 2.0 Flash (v1beta)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
     headers = {'Content-Type': 'application/json'}
     payload = {
         "contents": [{

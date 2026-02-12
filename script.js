@@ -4,24 +4,25 @@ function showView(viewName) {
     document.getElementById('view-' + viewName).style.display = 'block';
     document.getElementById('btn-' + viewName).classList.add('active');
     
-    if (viewName === 'collection') { renderStats(); renderCollection(); }
+    if (viewName === 'collection') renderCollection();
     if (viewName === 'year') renderYearView();
-}
-
-function renderStats() {
-    const d = new Date().getDate();
-    const total = plantsData.length;
-    const toWater = plantsData.filter(p => p.waterFreq === 1 || d % p.waterFreq === 0).length;
-    const statsHTML = `
-        <div class="stats-container">
-            <div class="stat-card"><span class="stat-value">${total}</span><span class="stat-label">В составе</span></div>
-            <div class="stat-card blue"><span class="stat-value">${toWater}</span><span class="stat-label">Полить сегодня</span></div>
-        </div>`;
-    document.getElementById('collectionList').innerHTML = statsHTML;
+    if (viewName === 'today') updateCalendar();
 }
 
 function renderCollection() {
     const list = document.getElementById('collectionList');
+    const d = new Date().getDate();
+    const total = plantsData.length;
+    const toWater = plantsData.filter(p => p.waterFreq === 1 || d % p.waterFreq === 0).length;
+
+    // Очищаем и рисуем статистику
+    list.innerHTML = `
+        <div class="stats-container">
+            <div class="stat-card"><span class="stat-value">${total}</span><span class="stat-label">В составе</span></div>
+            <div class="stat-card blue"><span class="stat-value">${toWater}</span><span class="stat-label">Полить сегодня</span></div>
+        </div>`;
+
+    // Рисуем карточки
     plantsData.forEach(p => {
         const lastLog = p.history && p.history.length > 0 ? p.history[p.history.length - 1] : { date: "-", event: "Нет записей" };
         list.innerHTML += `
@@ -37,8 +38,7 @@ function renderCollection() {
 function renderYearView() {
     const monthsShort = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
     const currentMonth = new Date().getMonth();
-    const header = document.getElementById('tableHeader');
-    header.innerHTML = '<th>Растение</th>' + monthsShort.map((m, i) => `<th class="${i === currentMonth ? 'current-month-col' : ''}">${m}</th>`).join('');
+    document.getElementById('tableHeader').innerHTML = '<th>Растение</th>' + monthsShort.map((m, i) => `<th class="${i === currentMonth ? 'current-month-col' : ''}">${m}</th>`).join('');
 
     const body = document.getElementById('tableBody');
     body.innerHTML = "";
@@ -58,6 +58,7 @@ function renderYearView() {
 function updateCalendar() {
     const now = new Date(); const d = now.getDate(); const m = now.getMonth();
     const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+    
     document.getElementById('monthName').innerText = months[m];
     document.getElementById('yearNum').innerText = now.getFullYear();
     document.getElementById('dayNum').innerText = d;
@@ -66,17 +67,17 @@ function updateCalendar() {
     let tasks = "";
     plantsData.forEach(p => {
         if (p.waterFreq === 1 || d % p.waterFreq === 0) {
-            tasks += `<div style="text-align:left; margin-bottom:8px;">✅ <b>${p.name}:</b> Полив</div>`;
-            if (p.feedMonths && p.feedMonths.includes(m) && (p.waterFreq > 1 || d === 1 || d === 15)) {
-                tasks += `<div style="text-align:left; color: #d35400; margin-bottom:12px; padding-left: 20px; font-size: 13px;">🧪 ${p.feedNote || 'Подкормка'}</div>`;
-            }
+            tasks += `<div class="task-item">
+                        <div class="task-main">✅ <b>${p.name}:</b> Полив</div>
+                        ${(p.feedMonths && p.feedMonths.includes(m)) ? `<div class="task-sub">🧪 ${p.feedNote}</div>` : ''}
+                      </div>`;
         }
         if (d <= 5) {
-            if (p.repotMonths && p.repotMonths.includes(m)) tasks += `<div style="text-align:left; color: #27ae60; font-size: 13px;">🪴 <b>${p.name}:</b> План пересадки</div>`;
-            if (p.pruneMonths && p.pruneMonths.includes(m)) tasks += `<div style="text-align:left; color: #2980b9; font-size: 13px;">✂️ <b>${p.name}:</b> План обрезки</div>`;
+            if (p.repotMonths && p.repotMonths.includes(m)) tasks += `<div class="task-item plan-repot">🪴 <b>${p.name}:</b> План пересадки</div>`;
+            if (p.pruneMonths && p.pruneMonths.includes(m)) tasks += `<div class="task-item plan-prune">✂️ <b>${p.name}:</b> План обрезки</div>`;
         }
     });
-    document.getElementById('todayTasks').innerHTML = tasks || "Сегодня по плану отдых 🌿";
+    document.getElementById('todayTasks').innerHTML = tasks || '<div class="no-tasks">Сегодня по плану отдых 🌿</div>';
 }
 
-updateCalendar();
+document.addEventListener('DOMContentLoaded', updateCalendar);

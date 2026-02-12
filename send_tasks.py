@@ -3,38 +3,61 @@ import requests
 import re
 import ast
 from datetime import datetime
-from google import genai
 from openai import OpenAI
 
-def get_ai_advice(plants_info, weather):
-    gemini_key = os.getenv('GEMINI_API_KEY', '').strip()
+def get_ai_advice(plants_info, weather_data):
     hf_token = os.getenv('HF_API_TOKEN', '').strip()
+    if not hf_token:
+        return "⚠️ Добавьте HF_API_TOKEN в секреты GitHub."
+
+    client = OpenAI(base_url="https://router.huggingface.co/v1", api_key=hf_token)
     
-    prompt = (
-        f"Ты эксперт-агроном. Февраль, растения в квартире, сухой воздух. "
-        f"На улице: {weather}. Растения: {plants_info}. "
-        f"Дай один дельный совет по уходу (до 10 слов)."
+    # Извлекаем данные погоды
+    temp = weather_data.get('temp', 22)
+    hum = weather_data.get('hum', 40)
+    desc = weather_data.get('desc', 'комнатная')
+
+    # ШАГ 1: Запрос к Агроному (Llama 3.1)
+    # Указываем контекст про "молодняк"
+    prompt_agronomist = (
+        f"Ты агроном. В комнате {temp}C, влажность {hum}%. Растения: {plants_info}. "
+        f"Учти, что в составе есть молодняк (сеянцы). Дай ОДИН короткий совет (до 10 слов)."
     )
 
-    if gemini_key:
-        try:
-            client = genai.Client(api_key=gemini_key)
-            response = client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
-            if response.text: return f"{response.text.strip().replace('*', '')} (G)"
-        except: pass
+    advice_llama = "Следите за влажностью почвы." # Заглушка
+    try:
+        res1 = client.chat.completions.create(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            messages=[{"role": "user", "content": prompt_agronomist}],
+            max_tokens=50,
+            timeout=10
+        )
+        advice_llama = res1.choices[0].message.content.strip().replace('*', '')
+    except Exception as e:
+        print(f"Ошибка Llama: {e}")
 
-    if hf_token:
-        try:
-            client = OpenAI(base_url="https://router.huggingface.co/v1", api_key=hf_token)
-            completion = client.chat.completions.create(
-                model="meta-llama/Llama-3.1-8B-Instruct",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=50, temperature=0.6
-            )
-            return f"{completion.choices[0].message.content.strip().replace('*', '')} (H)"
-        except: pass
+    # ШАГ 2: Запрос к Профессору (Qwen 72B) - Контроль качества
+    prompt_professor = (
+        f"Контекст: {plants_info}, климат {temp}C/{hum}%. "
+        f"Твой коллега-агроном дал совет: '{advice_llama}'. "
+        f"Как эксперт, подтверди его или исправь, если он опасен для молодых растений. "
+        f"Будь краток, максимум 15 слов."
+    )
 
-    return "Опрыскивайте листья и следите за влажностью почвы. (D)"
+    try:
+        res2 = client.chat.completions.create(
+            model="Qwen/Qwen2.5-72B-Instruct",
+            messages=[{"role": "user", "content": prompt_professor}],
+            max_tokens=70,
+            timeout=15 # Даем больше времени тяжелой модели
+        )
+        advice_qwen = res2.choices[0].message.content.strip().replace('*', '')
+        # Возвращаем диалог двух моделей
+        return f"👨‍🌾: {advice_llama}\n🎓: {advice_qwen}"
+    except Exception as e:
+        print(f"Ошибка Qwen: {e}")
+        # Если Qwen не ответила, возвращаем хотя бы совет Llama
+        return f"👨‍🌾: {advice_llama} (Профессор занят)"
 
 def get_weather():
     api_key = os.getenv('OPENWEATHER_API_KEY', '').strip()
@@ -42,12 +65,16 @@ def get_weather():
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
         res = requests.get(url, timeout=10).json()
-        return {"temp": res["main"]["temp"], "hum": res["main"]["humidity"], "desc": res["weather"][0]["description"]}
-    except: return None
+        return {
+            "temp": round(res["main"]["temp"]), 
+            "hum": res["main"]["humidity"], 
+            "desc": res["weather"][0]["description"]
+        }
+    except:
+        return {"temp": 22, "hum": 40, "desc": "нет данных"}
 
 def get_tasks():
     weather = get_weather()
-    w_info = f"{weather['temp']}°C, {weather['desc']}" if weather else "комнатная"
     
     try:
         with open('data.js', 'r', encoding='utf-8') as f:
@@ -57,17 +84,15 @@ def get_tasks():
         plants = ast.literal_eval(clean_js)
         
         all_names = ", ".join([p['name'] for p in plants])
-        ai_advice = get_ai_advice(all_names, w_info)
+        ai_advice = get_ai_advice(all_names, weather)
         
         now = datetime.now()
         day, month_idx = now.day, now.month - 1
         
-        # --- ФОРМАТИРОВАНИЕ СООБЩЕНИЯ ---
+        # Формирование сообщения
         msg = f"🌿 *ПЛАН САДА — {now.strftime('%d.%m')}*\n"
-        if weather:
-            msg += f"🌡 {weather['temp']}°C | 💧 {weather['hum']}% | {weather['desc'].capitalize()}\n"
-        
-        msg += f"\n🤖 _{ai_advice}_\n"
+        msg += f"🌡 {weather['temp']}°C | 💧 {weather['hum']}% | {weather['desc'].capitalize()}\n\n"
+        msg += f"🤖 *СОВЕТ ЭКСПЕРТОВ:*\n_{ai_advice}_\n"
         msg += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
         
         tasks_count = 0
@@ -76,20 +101,14 @@ def get_tasks():
                 tasks_count += 1
                 msg += f"📍 *{p['name'].upper()}*\n"
                 
-                # Базовая задача
                 task_line = "💧 Полив"
-                
-                # Добавляем подкормку, если месяц совпадает
                 if month_idx in p.get('feedMonths', []):
-                    # Кормим в дни полива (или 1 и 15 числа)
                     if p.get('waterFreq', 1) > 1 or day in [1, 15]:
-                        # Просто берем описание из базы (там уже есть дозировка)
                         feed_info = p.get('feedNote', 'Удобрение')
                         task_line += f" + 🧪 *{feed_info}*"
                 
                 msg += f"{task_line}\n"
                 
-                # Компактное предупреждение
                 if "warning" in p:
                     short_warn = p['warning'].replace('Мороз за окном! ', '❄️ ')
                     msg += f"└ _{short_warn}_\n"
@@ -98,9 +117,10 @@ def get_tasks():
         
         if tasks_count > 0:
             msg += f"\n✅ *Всего к поливу: {tasks_count}*"
-            return msg
         else:
-            return "🌿 *Сегодня по расписанию только отдых!*"
+            msg += "\n🌿 *Сегодня по расписанию только отдых!*"
+        
+        return msg
         
     except Exception as e:
         return f"Ошибка парсинга базы: {e}"
@@ -113,9 +133,11 @@ def send_to_telegram(text):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id, "text": text, "parse_mode": "Markdown",
-        "reply_markup": {"inline_keyboard": [[{"text": "✅ Выполнено", "callback_data": "done"}]]}
+        "reply_markup": {"inline_keyboard": [[{"text": "✅ Сделано!", "callback_data": "done"}]]}
     }
-    requests.post(url, json=payload, timeout=12)
+    try:
+        requests.post(url, json=payload, timeout=12)
+    except: pass
 
 if __name__ == "__main__":
     send_to_telegram(get_tasks())

@@ -7,33 +7,46 @@ from datetime import datetime
 def get_weather():
     api_key = os.getenv('OPENWEATHER_API_KEY')
     city = os.getenv('CITY_NAME', 'Moscow')
+    
     if not api_key:
+        print("⚠️ Ошибка: Секрет OPENWEATHER_API_KEY не найден в настройках GitHub!")
         return None
+        
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
         res = requests.get(url).json()
-        if res.get("cod") != 200: return None
+        
+        if res.get("cod") != 200:
+            print(f"⚠️ Ошибка API погоды: {res.get('message')}")
+            return None
+            
         return {
             "temp": res["main"]["temp"],
             "humidity": res["main"]["humidity"],
             "desc": res["weather"][0].get("description", "")
         }
-    except:
+    except Exception as e:
+        print(f"⚠️ Ошибка запроса погоды: {e}")
         return None
 
 def get_tasks():
     weather = get_weather()
     weather_header = ""
+    
     if weather:
         weather_header = f"🌡 *Погода:* {weather['temp']}°C, {weather['desc']}\n💧 *Влажность:* {weather['humidity']}%\n"
         if weather['temp'] > 27:
-            weather_header += "⚠️ *Жара! Проверь лимоны.*\n"
+            weather_header += "⚠️ *Жара! Проверь лимоны — почва сохнет быстрее.*\n"
         weather_header += "───────────────\n\n"
 
     try:
         with open('data.js', 'r', encoding='utf-8') as f:
             content = f.read()
+        
         match = re.search(r'const\s+plantsData\s*=\s*(\[.*\]);', content, re.DOTALL)
+        if not match:
+            return "❌ Ошибка: Не удалось найти данные растений в data.js"
+            
         raw_data = re.sub(r'//.*', '', match.group(1))
         plants = ast.literal_eval(raw_data)
 
@@ -44,8 +57,10 @@ def get_tasks():
 
         for p in plants:
             tasks = []
+            # Проверка частоты полива
             if p.get('waterFreq') == 1 or d % p.get('waterFreq', 99) == 0:
                 tasks.append("💧 Полив")
+                # Проверка подкормки (по месяцам и числам 1 или 15)
                 if m in p.get('feedMonths', []) and (p.get('waterFreq', 1) > 1 or d in [1, 15]):
                     tasks.append(f"🧪 {p.get('feedNote', 'Подкормка')}")
             
@@ -58,7 +73,7 @@ def get_tasks():
 
         return msg if has_tasks else f"{weather_header}🌿 Сегодня в саду выходной!"
     except Exception as e:
-        return f"❌ Ошибка: {str(e)}"
+        return f"❌ Ошибка в коде: {str(e)}"
 
 def send_to_telegram(text):
     token = os.getenv('TELEGRAM_TOKEN')

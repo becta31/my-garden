@@ -1,61 +1,121 @@
-/* ПОЛНАЯ БАЗА РАСТЕНИЙ (версия 2026: Осмокот + Янтарка)
-   Месяцы: 0=Янв, 1=Фев, 2=Мар, 3=Апр, 4=Май, 5=Июн, 
-          6=Июл, 7=Авг, 8=Сен, 9=Окт, 10=Ноя, 11=Дек
-*/
+import os
+import requests
+import re
+import ast
+from datetime import datetime
+from google import genai
+from openai import OpenAI
 
-const plantsData = [
-    { 
-        "id": "citrus-group",
-        "name": "Лимоны / Цитрусы", 
-        "category": "fruit",
-        "location": "Окно (Оптимально СВ)",
-        "waterFreq": 3, 
-        "feedMonths": [1, 2, 3, 4, 5, 6, 7, 8], 
-        "feedNote": "Март: вносим Осмокот (4г/л). Сейчас: Янтарная к-та (0.5г/л) для снятия стресса",
-        "warning": "Мороз за окном! Янтарка поможет не сбросить лист при сухом воздухе.",
-        "history": [{ "date": "2026-02-10", "event": "Мониторинг", "note": "Зимнее содержание." }]
-    },
-    { 
-        "id": "adenium-young",
-        "name": "Адениум (Молодой)", 
-        "category": "adenium",
-        "location": "Юго-Запад (Полка B + Лампа)",
-        "waterFreq": 14, 
-        "feedMonths": [2, 4, 6], 
-        "feedNote": "Март: Осмокот High K (3г/л) в лунки. Полив: Янтарная к-та (0.2г/л)",
-        "warning": "ЯДОВИТЫЙ СОК! В марте — обрезка каудекса.",
-        "history": [{ "date": "2026-01-20", "event": "Подготовка", "note": "Ждем марта." }]
-    },
-    { 
-        "id": "cactus-seeds",
-        "name": "Кактусы (Сеянцы)", 
-        "category": "cactus",
-        "location": "Юго-Запад (Полка B + Лампа)",
-        "waterFreq": 3, 
-        "feedMonths": [1, 2, 3, 4, 5, 6, 7, 8], 
-        "feedNote": "Янтарная кислота (микродоза 0.1г/л). Bona Forte (добить остатки 1мл/л)",
-        "warning": "Не допускать засухи! Янтарка ускоряет развитие корней у малышей.",
-        "history": [{ "date": "2026-01-23", "event": "Практика", "note": "Старт программы роста." }]
-    },
-    { 
-        "id": "pomegranate-mini",
-        "name": "Гранат комнатный",
-        "category": "fruit",
-        "location": "Юго-Запад (Полка B)",
-        "waterFreq": 4,
-        "feedMonths": [2, 4, 6],
-        "feedNote": "Март: заправка Осмокотом (3г/л). Сейчас: полив чистой теплой водой.",
-        "warning": "Листопадное! В марте — обрезка.",
-        "history": []
-    },
-    { 
-        "id": "orchids-violets",
-        "name": "Орхидеи / Фиалки", 
-        "category": "flower",
-        "waterFreq": 7, 
-        "feedMonths": [1, 2, 3, 4, 5, 6, 7, 8], 
-        "feedNote": "Янтарная кислота (0.5г/л) — по листу или проливом. Оживляет корни!",
-        "warning": "Орхидеи: риск клеща при сухости воздуха!",
-        "history": []
+def get_ai_advice(plants_info, weather):
+    gemini_key = os.getenv('GEMINI_API_KEY', '').strip()
+    hf_token = os.getenv('HF_API_TOKEN', '').strip()
+    
+    prompt = (
+        f"Ты эксперт-агроном. Февраль, растения в квартире, сухой воздух. "
+        f"На улице: {weather}. Растения: {plants_info}. "
+        f"Дай один дельный совет по уходу (до 10 слов)."
+    )
+
+    if gemini_key:
+        try:
+            client = genai.Client(api_key=gemini_key)
+            response = client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
+            if response.text: return f"{response.text.strip().replace('*', '')} (G)"
+        except: pass
+
+    if hf_token:
+        try:
+            client = OpenAI(base_url="https://router.huggingface.co/v1", api_key=hf_token)
+            completion = client.chat.completions.create(
+                model="meta-llama/Llama-3.1-8B-Instruct",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=50, temperature=0.6
+            )
+            return f"{completion.choices[0].message.content.strip().replace('*', '')} (H)"
+        except: pass
+
+    return "Опрыскивайте листья и следите за влажностью почвы. (D)"
+
+def get_weather():
+    api_key = os.getenv('OPENWEATHER_API_KEY', '').strip()
+    city = os.getenv('CITY_NAME', 'Moscow').strip()
+    try:
+        url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
+        res = requests.get(url, timeout=10).json()
+        return {"temp": res["main"]["temp"], "hum": res["main"]["humidity"], "desc": res["weather"][0]["description"]}
+    except: return None
+
+def get_tasks():
+    weather = get_weather()
+    w_info = f"{weather['temp']}°C, {weather['desc']}" if weather else "комнатная"
+    
+    try:
+        with open('data.js', 'r', encoding='utf-8') as f:
+            content = f.read()
+        match = re.search(r'const\s+plantsData\s*=\s*(\[.*\]);', content, re.DOTALL)
+        clean_js = re.sub(r'//.*', '', match.group(1))
+        plants = ast.literal_eval(clean_js)
+        
+        all_names = ", ".join([p['name'] for p in plants])
+        ai_advice = get_ai_advice(all_names, w_info)
+        
+        now = datetime.now()
+        day, month_idx = now.day, now.month - 1
+        
+        # --- ФОРМАТИРОВАНИЕ СООБЩЕНИЯ ---
+        msg = f"🌿 *ПЛАН САДА — {now.strftime('%d.%m')}*\n"
+        if weather:
+            msg += f"🌡 {weather['temp']}°C | 💧 {weather['hum']}% | {weather['desc'].capitalize()}\n"
+        
+        msg += f"\n🤖 _{ai_advice}_\n"
+        msg += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+        
+        tasks_count = 0
+        for p in plants:
+            if day % p.get('waterFreq', 99) == 0:
+                tasks_count += 1
+                msg += f"📍 *{p['name'].upper()}*\n"
+                
+                # Базовая задача
+                task_line = "💧 Полив"
+                
+                # Добавляем подкормку, если месяц совпадает
+                if month_idx in p.get('feedMonths', []):
+                    # Кормим в дни полива (или 1 и 15 числа)
+                    if p.get('waterFreq', 1) > 1 or day in [1, 15]:
+                        # Просто берем описание из базы (там уже есть дозировка)
+                        feed_info = p.get('feedNote', 'Удобрение')
+                        task_line += f" + 🧪 *{feed_info}*"
+                
+                msg += f"{task_line}\n"
+                
+                # Компактное предупреждение
+                if "warning" in p:
+                    short_warn = p['warning'].replace('Мороз за окном! ', '❄️ ')
+                    msg += f"└ _{short_warn}_\n"
+                
+                msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
+        
+        if tasks_count > 0:
+            msg += f"\n✅ *Всего к поливу: {tasks_count}*"
+            return msg
+        else:
+            return "🌿 *Сегодня по расписанию только отдых!*"
+        
+    except Exception as e:
+        return f"Ошибка парсинга базы: {e}"
+
+def send_to_telegram(text):
+    token = os.getenv('TELEGRAM_TOKEN', '').strip()
+    chat_id = os.getenv('TELEGRAM_CHAT_ID', '').strip()
+    if not token or not chat_id: return
+    
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id, "text": text, "parse_mode": "Markdown",
+        "reply_markup": {"inline_keyboard": [[{"text": "✅ Выполнено", "callback_data": "done"}]]}
     }
-];
+    requests.post(url, json=payload, timeout=12)
+
+if __name__ == "__main__":
+    send_to_telegram(get_tasks())

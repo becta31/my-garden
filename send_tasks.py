@@ -6,62 +6,72 @@ import time
 import random
 from datetime import datetime
 
-# Настройки
-LEIKA_VOLUME = 1.0 
-
 def get_ai_advice(plants_info, weather):
-    api_key = os.getenv('GEMINI_API_KEY')
-    if not api_key: return "Ключ не найден."
+    gemini_key = os.getenv('GEMINI_API_KEY')
+    hf_token = os.getenv('HF_API_TOKEN')
     
-    # 1. Случайная задержка от 5 до 45 секунд (обход фильтров GitHub IP)
-    time.sleep(random.randint(5, 45))
-    
-    # 2. Облегченный промпт (меньше токенов - меньше шансов на 429)
-    prompt = f"Растения: {plants_info}. Погода: {weather}. Дай 1 короткий совет агронома (15 слов)."
-    
-    # 3. Переключаемся на 1.5-flash (у неё лимиты выше)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    headers = {'Content-Type': 'application/json'}
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    
-    for attempt in range(3):
+    prompt = f"Растения: {plants_info}. Погода: {weather}. Ты агроном. Дай ОДИН короткий совет (15 слов) по уходу сегодня."
+
+    # --- ВАРИАНТ 1: GEMINI (Основной) ---
+    if gemini_key:
+        print("Запрос к Gemini...")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
-            if response.status_code == 200:
-                result = response.json()
-                text = result['candidates'][0]['content']['parts'][0]['text'].strip()
+            # Небольшая пауза для обхода лимитов
+            time.sleep(random.randint(2, 5))
+            res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=15)
+            if res.status_code == 200:
+                text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
                 return text.replace('*', '').replace('_', '')
-            elif response.status_code == 429:
-                # Если 429, ждем подольше
-                time.sleep(20 * (attempt + 1))
-                continue
-            else:
-                return f"Статус: {response.status_code}"
-        except:
-            time.sleep(10)
-            
-    return "Лимит запросов. Агроном ответит в следующий раз."
+        except Exception as e:
+            print(f"Gemini ошибка: {e}")
+
+    # --- ВАРИАНТ 2: HUGGING FACE (Запасной) ---
+    if hf_token:
+        print("Gemini не ответил. Запрос к Hugging Face (Mistral)...")
+        url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+        headers = {"Authorization": f"Bearer {hf_token}"}
+        payload = {
+            "inputs": f"<s>[INST] {prompt} [/INST] ",
+            "parameters": {"max_new_tokens": 50, "temperature": 0.7}
+        }
+        try:
+            res = requests.post(url, headers=headers, json=payload, timeout=15)
+            if res.status_code == 200:
+                raw_text = res.json()[0]['generated_text']
+                # Очищаем ответ от промпта (Mistral иногда возвращает всё вместе)
+                clean_text = raw_text.split("[/INST]")[-1].strip()
+                return clean_text.replace('*', '').replace('_', '')
+        except Exception as e:
+            print(f"HF ошибка: {e}")
+
+    return "Агроном на связи: сегодня придерживайтесь стандартного графика полива."
 
 def get_weather():
     api_key = os.getenv('OPENWEATHER_API_KEY')
     city = os.getenv('CITY_NAME', 'Moscow')
+    if not api_key: return None
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
-        res = requests.get(url).json()
-        return {"temp": res["main"]["temp"], "humidity": res["main"]["humidity"], "desc": res["weather"][0]["description"]}
+        res = requests.get(url, timeout=10).json()
+        return {"temp": res["main"]["temp"], "humidity": res["main"]["humidity"], "desc": res["weather"][0].get("description", "ясно")}
     except: return None
 
 def get_tasks():
     weather = get_weather()
-    w_info = f"{weather['temp']}C, {weather['desc']}" if weather else "норма"
+    w_info = f"{weather['temp']}C, {weather['desc']}" if weather else "комнатная"
     
     try:
         with open('data.js', 'r', encoding='utf-8') as f:
             content = f.read()
         match = re.search(r'const\s+plantsData\s*=\s*(\[.*\]);', content, re.DOTALL)
-        plants = ast.literal_eval(re.sub(r'//.*', '', match.group(1)))
+        if not match: return "Ошибка: база данных не найдена."
         
-        # Берем только имена растений для ИИ, чтобы сэкономить лимит
+        # Очистка от комментариев и парсинг
+        clean_js = re.sub(r'//.*', '', match.group(1))
+        plants = ast.literal_eval(clean_js)
+        
+        # Получаем ИИ-совет
         names_only = ", ".join([p['name'] for p in plants])
         ai_advice = get_ai_advice(names_only, w_info)
 
@@ -83,14 +93,18 @@ def get_tasks():
                 if "warning" in p: msg += f"⚠️ _{p['warning']}_\n"
                 msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
                 has_tasks = True
-        return msg if has_tasks else "🌿 Сегодня отдыхаем!"
-    except Exception as e: return f"Ошибка: {e}"
+        
+        return msg if has_tasks else "🌿 Сегодня по плану отдых и созерцание!"
+    except Exception as e:
+        return f"Ошибка при формировании задач: {e}"
 
 def send_to_telegram(text):
-    token, chat_id = os.getenv('TELEGRAM_TOKEN'), os.getenv('TELEGRAM_CHAT_ID')
+    token = os.getenv('TELEGRAM_TOKEN')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID')
     if token and chat_id:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"})
+        requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}, timeout=10)
 
 if __name__ == "__main__":
-    send_to_telegram(get_tasks())
+    content = get_tasks()
+    send_to_telegram(content)

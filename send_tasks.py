@@ -11,27 +11,40 @@ LEIKA_VOLUME = 1.0
 def get_ai_advice(plants_info, weather):
     api_key = os.getenv('GEMINI_API_KEY')
     if not api_key: 
-        return "ИИ-совет сегодня недоступен (проверь GEMINI_API_KEY в GitHub Secrets)."
+        return "ИИ-совет недоступен (ключ не найден в настройках GitHub)."
     
-    prompt = f"""
-    Ты — эксперт-агроном. У пользователя есть комнатный сад: {plants_info}.
-    Погода на улице сегодня: {weather}. 
-    Доступные ресурсы: удобрение Осмокот (11-11-18), Bona Forte и порошок янтарной кислоты. 
-    Лейка объемом 1 литр. 
-    Дай один короткий, емкий и практичный совет на сегодня (максимум 2-3 предложения). 
-    Учти 'молодых игроков' (сеянцы). Пиши по-человечески, как профи коллеге.
-    """
+    # Промпт для агронома
+    prompt = (
+        f"Ты эксперт-растениевод. Погода: {weather}. Мои растения: {plants_info}. "
+        f"В наличии: Осмокот (11-11-18), Bona Forte, Янтарная кислота. Лейка 1л. "
+        f"Дай 1 короткий совет по уходу на сегодня (2 предложения). "
+        f"Учти мороз и наличие сеянцев. Пиши кратко и профессионально."
+    )
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     headers = {'Content-Type': 'application/json'}
-    data = {"contents": [{"parts": [{"text": prompt}]}]}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }]
+    }
     
     try:
-        response = requests.post(url, headers=headers, json=data, timeout=10)
-        result = response.json()
-        return result['candidates'][0]['content']['parts'][0]['text']
-    except Exception:
-        return "Агроном-ИИ взял выходной (ошибка связи)."
+        # Тайм-аут увеличен до 30 секунд для надежности
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            # Извлекаем текст из структуры ответа Gemini
+            try:
+                advice = result['candidates'][0]['content']['parts'][0]['text']
+                return advice.strip()
+            except (KeyError, IndexWarning):
+                return "Агроном задумался и не выдал ответ. Попробуй завтра."
+        else:
+            return f"Агроном занят (Ошибка {response.status_code})."
+    except Exception as e:
+        return f"Ошибка связи с ИИ: {str(e)[:50]}"
 
 def get_weather():
     api_key = os.getenv('OPENWEATHER_API_KEY')
@@ -74,16 +87,14 @@ def get_tasks():
             msg += f"🌡 *ПОГОДА:* {weather['temp']}°C ({weather['desc']})\n"
             msg += f"💧 *ВЛАЖНОСТЬ:* {weather['humidity']}%\n\n"
         
-        msg += f"🤖 *СОВЕТ АГРОНОМА:* \n_{ai_advice.strip()}_\n"
-        msg += "─" * 15 + "\n\n"
+        msg += f"🤖 *СОВЕТ АГРОНОМА:* \n_{ai_advice}_\n"
+        msg += "\n" + "─" * 15 + "\n\n"
 
         has_tasks = False
         for p in plants:
             tasks = []
-            # Логика полива
             if p.get('waterFreq') == 1 or d % p.get('waterFreq', 99) == 0:
                 tasks.append("  💧 *ПОЛИВ*")
-                # Логика подкормки
                 if m in p.get('feedMonths', []) and (p.get('waterFreq', 1) > 1 or d in [1, 15]):
                     tasks.append(f"  🧪 *РЕЦЕПТ:* {p.get('feedNote')}\n     _(на {LEIKA_VOLUME}л воды)_")
             
@@ -94,7 +105,7 @@ def get_tasks():
                 msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
                 has_tasks = True
 
-        return msg if has_tasks else f"🌤 {weather_info}\n🌿 Сегодня только отдых!"
+        return msg if has_tasks else f"🌿 На сегодня задач нет!"
     except Exception as e:
         return f"❌ Ошибка в скрипте: {str(e)}"
 

@@ -1,31 +1,24 @@
-const CACHE_NAME = 'garden-v2'; // Поменял v1 на v2 — и телефон скачает всё заново
+const CACHE_NAME = 'garden-v2';
 const ASSETS = [
-  'index.html',
-  'style.css',
-  'script.js',
-  'data.js',
-  'manifest.json'
+  './',
+  './index.html',
+  './style.css',
+  './script.js',
+  './data.js',
+  './manifest.json',
+  'https://img.icons8.com/fluency/192/potted-plant.png'
 ];
 
-// Установка
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
-  );
+  e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
 });
 
-// Активация и очистка старого кэша
 self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)));
-    })
-  );
+  e.waitUntil(caches.keys().then(keys => Promise.all(
+    keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+  )));
 });
 
-// Запрос данных
 self.addEventListener('fetch', (e) => {
-  e.respondWith(
-    caches.match(e.request).then((res) => res || fetch(e.request))
-  );
+  e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
 });

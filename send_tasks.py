@@ -17,7 +17,6 @@ def get_ai_advice(plants_info, weather):
         print("Запрос к Gemini...")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
         try:
-            # Небольшая пауза для обхода лимитов
             time.sleep(random.randint(2, 5))
             res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=15)
             if res.status_code == 200:
@@ -28,7 +27,7 @@ def get_ai_advice(plants_info, weather):
 
     # --- ВАРИАНТ 2: HUGGING FACE (Запасной) ---
     if hf_token:
-        print("Gemini не ответил. Запрос к Hugging Face (Mistral)...")
+        print("Запрос к Hugging Face...")
         url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
         headers = {"Authorization": f"Bearer {hf_token}"}
         payload = {
@@ -39,7 +38,6 @@ def get_ai_advice(plants_info, weather):
             res = requests.post(url, headers=headers, json=payload, timeout=15)
             if res.status_code == 200:
                 raw_text = res.json()[0]['generated_text']
-                # Очищаем ответ от промпта (Mistral иногда возвращает всё вместе)
                 clean_text = raw_text.split("[/INST]")[-1].strip()
                 return clean_text.replace('*', '').replace('_', '')
         except Exception as e:
@@ -67,11 +65,9 @@ def get_tasks():
         match = re.search(r'const\s+plantsData\s*=\s*(\[.*\]);', content, re.DOTALL)
         if not match: return "Ошибка: база данных не найдена."
         
-        # Очистка от комментариев и парсинг
         clean_js = re.sub(r'//.*', '', match.group(1))
         plants = ast.literal_eval(clean_js)
         
-        # Получаем ИИ-совет
         names_only = ", ".join([p['name'] for p in plants])
         ai_advice = get_ai_advice(names_only, w_info)
 
@@ -101,9 +97,28 @@ def get_tasks():
 def send_to_telegram(text):
     token = os.getenv('TELEGRAM_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
-    if token and chat_id:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}, timeout=10)
+    if not (token and chat_id): return
+    
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    
+    # Добавляем кнопку
+    reply_markup = {
+        "inline_keyboard": [[
+            {"text": "✅ Все полито и подкормлено!", "callback_data": "done"}
+        ]]
+    }
+    
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "Markdown",
+        "reply_markup": reply_markup
+    }
+    
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Ошибка TG: {e}")
 
 if __name__ == "__main__":
     content = get_tasks()

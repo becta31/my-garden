@@ -34,4 +34,4 @@ jobs:
         run: |
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -d text="⚠️ ВНИМАНИЕ: Бот-садовод упал с ошибкой! Проверь логи в GitHub Actions: https://github.com/${{ github.repository }}/actions"
+          -d text="⚠️ ВНИМАНИЕ: Бот-садовод упал с ошибкой! Проверь логи в GitHub Actions."

@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests openai
+          pip install requests google-genai openai
 
       - name: Run reminder script
         env:

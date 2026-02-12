@@ -2,6 +2,7 @@ import os
 import requests
 import re
 import ast
+import time
 from datetime import datetime
 
 # Настройки
@@ -15,32 +16,39 @@ def get_ai_advice(plants_info, weather):
     prompt = (
         f"Ты эксперт-агроном. Погода: {weather}. Мои растения: {plants_info}. "
         f"В наличии: Осмокот, Bona Forte, Янтарная кислота. Лейка 1л. "
-        f"Дай 1 короткий совет по уходу на сегодня (максимум 2 предложения). "
-        f"Учти мороз и сеянцы. Пиши кратко, без жирного текста и без символов *."
+        f"Дай 1 короткий совет по уходу (2 предложения). "
+        f"Учти мороз и молодых сеянцев. Пиши без жирного текста и без символов *."
     )
     
-    # URL для модели 2.0 Flash
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    # Используем стабильный эндпоинт v1
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
     headers = {'Content-Type': 'application/json'}
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }]
-    }
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        if response.status_code == 200:
-            result = response.json()
-            text = result['candidates'][0]['content']['parts'][0]['text'].strip()
-            # Очистка от спецсимволов, которые могут мешать Markdown
-            return text.replace('*', '').replace('_', '')
-        elif response.status_code == 429:
-            return "Агроном отдыхает (лимит запросов превышен). Попробуй через 10 минут."
-        else:
-            return f"Агроном занят (Код {response.status_code})."
-    except Exception as e:
-        return f"Ошибка связи: {str(e)[:30]}"
+    # ЛОГИКА ПОВТОРОВ (Retry Logic)
+    for attempt in range(3):
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                text = result['candidates'][0]['content']['parts'][0]['text'].strip()
+                return text.replace('*', '').replace('_', '')
+            
+            elif response.status_code == 429:
+                if attempt < 2:
+                    time.sleep(10) # Ждем 10 секунд перед повтором
+                    continue
+                return "Агроном отдыхает (лимит запросов). Попробуй запустить позже."
+            
+            else:
+                return f"Агроном занят (Код {response.status_code})."
+                
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(5)
+                continue
+            return f"Ошибка связи: {str(e)[:30]}"
 
 def get_weather():
     api_key = os.getenv('OPENWEATHER_API_KEY')
@@ -66,7 +74,7 @@ def get_tasks():
             content = f.read()
         
         match = re.search(r'const\s+plantsData\s*=\s*(\[.*\]);', content, re.DOTALL)
-        if not match: return "❌ Ошибка: Данные в data.js не найдены."
+        if not match: return "❌ Ошибка: Данные не найдены."
         
         raw_data = re.sub(r'//.*', '', match.group(1))
         plants = ast.literal_eval(raw_data)
@@ -101,9 +109,9 @@ def get_tasks():
                 msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
                 has_tasks = True
 
-        return msg if has_tasks else f"🌿 Сегодня задач нет, отдыхай!"
+        return msg if has_tasks else f"🌿 Сегодня задач нет!"
     except Exception as e:
-        return f"❌ Ошибка в скрипте: {str(e)}"
+        return f"❌ Ошибка: {str(e)}"
 
 def send_to_telegram(text):
     token = os.getenv('TELEGRAM_TOKEN')
@@ -112,17 +120,8 @@ def send_to_telegram(text):
     
     if token and chat_id:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        keyboard = {
-            "inline_keyboard": [[
-                {"text": "✅ Сделано!", "url": f"https://github.com/{repo}/actions"}
-            ]]
-        }
-        payload = {
-            "chat_id": chat_id, 
-            "text": text, 
-            "parse_mode": "Markdown",
-            "reply_markup": keyboard
-        }
+        keyboard = {"inline_keyboard": [[{"text": "✅ Сделано!", "url": f"https://github.com/{repo}/actions"}]]}
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown", "reply_markup": keyboard}
         requests.post(url, json=payload)
 
 if __name__ == "__main__":

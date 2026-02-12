@@ -7,52 +7,48 @@ import random
 from datetime import datetime
 
 def get_ai_advice(plants_info, weather):
-    gemini_key = os.getenv('GEMINI_API_KEY')
-    hf_token = os.getenv('HF_API_TOKEN')
+    # .strip() удаляет лишние пробелы и переносы строк в начале и конце
+    gemini_key = os.getenv('GEMINI_API_KEY', '').strip()
+    hf_token = os.getenv('HF_API_TOKEN', '').strip()
     
     prompt = f"Растения: {plants_info}. Погода: {weather}. Ты агроном. Дай ОДИН короткий совет (15 слов) по уходу сегодня."
 
-    # --- ВАРИАНТ 1: GEMINI (Основной) ---
+    # --- ВАРИАНТ 1: GEMINI ---
     if gemini_key:
-        print("Запрос к Gemini...")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
         try:
-            time.sleep(random.randint(2, 5))
+            time.sleep(random.randint(2, 4))
             res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=15)
             if res.status_code == 200:
                 text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
-                return text.replace('*', '').replace('_', '')
+                return f"{text.replace('*', '')} (G)" # (G) - значит ответил Gemini
         except Exception as e:
-            print(f"Gemini ошибка: {e}")
+            print(f"Gemini error: {e}")
 
-    # --- ВАРИАНТ 2: HUGGING FACE (Запасной) ---
+    # --- ВАРИАНТ 2: HUGGING FACE ---
     if hf_token:
-        print("Запрос к Hugging Face...")
         url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
         headers = {"Authorization": f"Bearer {hf_token}"}
-        payload = {
-            "inputs": f"<s>[INST] {prompt} [/INST] ",
-            "parameters": {"max_new_tokens": 50, "temperature": 0.7}
-        }
+        payload = {"inputs": f"<s>[INST] {prompt} [/INST]", "parameters": {"max_new_tokens": 50}}
         try:
             res = requests.post(url, headers=headers, json=payload, timeout=15)
             if res.status_code == 200:
                 raw_text = res.json()[0]['generated_text']
                 clean_text = raw_text.split("[/INST]")[-1].strip()
-                return clean_text.replace('*', '').replace('_', '')
+                return f"{clean_text.replace('*', '')} (H)" # (H) - значит ответил Hugging Face
         except Exception as e:
-            print(f"HF ошибка: {e}")
+            print(f"HF error: {e}")
 
-    return "Агроном на связи: сегодня придерживайтесь стандартного графика полива."
+    return "Придерживайтесь стандартного графика полива. (Default)"
 
 def get_weather():
-    api_key = os.getenv('OPENWEATHER_API_KEY')
-    city = os.getenv('CITY_NAME', 'Moscow')
+    api_key = os.getenv('OPENWEATHER_API_KEY', '').strip()
+    city = os.getenv('CITY_NAME', 'Moscow').strip()
     if not api_key: return None
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
         res = requests.get(url, timeout=10).json()
-        return {"temp": res["main"]["temp"], "humidity": res["main"]["humidity"], "desc": res["weather"][0].get("description", "ясно")}
+        return {"temp": res["main"]["temp"], "humidity": res["main"]["humidity"], "desc": res["weather"][0]["description"]}
     except: return None
 
 def get_tasks():
@@ -63,7 +59,7 @@ def get_tasks():
         with open('data.js', 'r', encoding='utf-8') as f:
             content = f.read()
         match = re.search(r'const\s+plantsData\s*=\s*(\[.*\]);', content, re.DOTALL)
-        if not match: return "Ошибка: база данных не найдена."
+        if not match: return "Ошибка БД"
         
         clean_js = re.sub(r'//.*', '', match.group(1))
         plants = ast.literal_eval(clean_js)
@@ -90,23 +86,17 @@ def get_tasks():
                 msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
                 has_tasks = True
         
-        return msg if has_tasks else "🌿 Сегодня по плану отдых и созерцание!"
+        return msg if has_tasks else "🌿 Сегодня отдых!"
     except Exception as e:
-        return f"Ошибка при формировании задач: {e}"
+        return f"Ошибка: {e}"
 
 def send_to_telegram(text):
-    token = os.getenv('TELEGRAM_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    token = os.getenv('TELEGRAM_TOKEN', '').strip()
+    chat_id = os.getenv('TELEGRAM_CHAT_ID', '').strip()
     if not (token and chat_id): return
     
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    
-    # Добавляем кнопку
-    reply_markup = {
-        "inline_keyboard": [[
-            {"text": "✅ Все полито и подкормлено!", "callback_data": "done"}
-        ]]
-    }
+    reply_markup = {"inline_keyboard": [[{"text": "✅ Все полито!", "callback_data": "done"}]]}
     
     payload = {
         "chat_id": chat_id,
@@ -114,12 +104,7 @@ def send_to_telegram(text):
         "parse_mode": "Markdown",
         "reply_markup": reply_markup
     }
-    
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception as e:
-        print(f"Ошибка TG: {e}")
+    requests.post(url, json=payload, timeout=10)
 
 if __name__ == "__main__":
-    content = get_tasks()
-    send_to_telegram(content)
+    send_to_telegram(get_tasks())

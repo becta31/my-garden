@@ -5,14 +5,13 @@ import ast
 from datetime import datetime
 
 # --- ТВОИ НАСТРОЙКИ ---
-LEIKA_VOLUME = 1.0  # Объем лейки в литрах
+LEIKA_VOLUME = 1.0  # Объем твоей лейки в литрах
 
 def get_weather():
     api_key = os.getenv('OPENWEATHER_API_KEY')
     city = os.getenv('CITY_NAME', 'Moscow')
     
     if not api_key:
-        print("⚠️ Ошибка: Секрет OPENWEATHER_API_KEY не найден!")
         return None
         
     try:
@@ -20,7 +19,6 @@ def get_weather():
         res = requests.get(url).json()
         
         if res.get("cod") != 200:
-            print(f"⚠️ Ошибка API погоды: {res.get('message')}")
             return None
             
         return {
@@ -28,8 +26,7 @@ def get_weather():
             "humidity": res["main"]["humidity"],
             "desc": res["weather"][0].get("description", "")
         }
-    except Exception as e:
-        print(f"⚠️ Ошибка запроса погоды: {e}")
+    except:
         return None
 
 def get_tasks():
@@ -37,68 +34,75 @@ def get_tasks():
     weather_header = ""
     
     if weather:
-        weather_header = f"🌡 *Погода:* {weather['temp']}°C, {weather['desc']}\n💧 *Влажность:* {weather['humidity']}%\n"
+        weather_header = (
+            f"🌤 *ПОГОДА ЗА ОКНОМ*\n"
+            f"🌡 Температура: {weather['temp']}°C ({weather['desc']})\n"
+            f"💧 Влажность: {weather['humidity']}%\n"
+        )
         
-        # Умные советы
+        # Блок оперативных советов на основе погоды
+        advice = []
         if weather['temp'] < 0:
-            weather_header += "❄️ *Мороз!* Полей «теплыми пятками» (вода ~30°C), чтобы не застудить корни.\n"
-        elif weather['temp'] > 25:
-            weather_header += "☀️ *Жарко!* Проверь грунт у сеянцев, может высохнуть быстрее.\n"
-            
+            advice.append("❄️ *МОРОЗ:* Полив только тёплой водой (~30°C)!")
         if weather['humidity'] > 70 and weather['temp'] < 0:
-            weather_header += "💨 *Важно:* На улице влажно, но дома батареи сушат воздух. Цитрусам нужно опрыскивание!\n"
+            advice.append("💨 *СУХОЙ ВОЗДУХ:* Дома жарят батареи. Цитрусам нужно опрыскивание!")
+        
+        if advice:
+            weather_header += "\n" + "\n".join(advice)
             
-        weather_header += "───────────────\n\n"
+        weather_header += "\n" + "─" * 15 + "\n\n"
 
     try:
         with open('data.js', 'r', encoding='utf-8') as f:
             content = f.read()
         
+        # Ищем массив plantsData в JS файле
         match = re.search(r'const\s+plantsData\s*=\s*(\[.*\]);', content, re.DOTALL)
         if not match:
-            return "❌ Ошибка: Не удалось найти данные растений в data.js"
+            return "❌ Ошибка: Не удалось прочитать данные из data.js"
             
         raw_data = re.sub(r'//.*', '', match.group(1))
         plants = ast.literal_eval(raw_data)
 
         now = datetime.now()
         d, m = now.day, now.month - 1
-        msg = f"🌿 *План в саду на сегодня ({now.strftime('%d.%m')}):*\n\n{weather_header}"
+        msg = f"🌿 *САДОВЫЙ ПЛАН ({now.strftime('%d.%m')})*\n\n{weather_header}"
         has_tasks = False
 
         for p in plants:
             tasks = []
-            # Проверка полива
+            # Проверка частоты полива (кратность дням)
             if p.get('waterFreq') == 1 or d % p.get('waterFreq', 99) == 0:
-                tasks.append("💧 Полив")
+                tasks.append("  💧 *ПОЛИВ*")
                 
-                # Проверка подкормки (с учетом лейки)
+                # Проверка подкормки (если текущий месяц в списке и день 1, 15 или редкий полив)
                 if m in p.get('feedMonths', []) and (p.get('waterFreq', 1) > 1 or d in [1, 15]):
                     feed_info = p.get('feedNote', 'Подкормка')
-                    # Добавляем приписку про литраж
-                    tasks.append(f"🧪 *{feed_info}* (расчет на {LEIKA_VOLUME}л)")
+                    tasks.append(f"  🧪 *РЕЦЕПТ:* {feed_info}\n     _(на {LEIKA_VOLUME}л воды)_")
             
             if tasks:
-                msg += f"🔹 *{p['name']}*:\n" + "\n".join([f"  — {t}" for t in tasks]) + "\n"
+                msg += f"📍 *{p['name'].upper()}*\n" + "\n".join(tasks) + "\n"
                 if "warning" in p:
-                    msg += f"  ❗ _{p['warning']}_\n"
-                msg += "\n"
+                    msg += f"⚠️ _{p['warning']}_\n"
+                msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
                 has_tasks = True
 
-        return msg if has_tasks else f"{weather_header}🌿 Сегодня в саду выходной!"
+        return msg if has_tasks else f"{weather_header}🌿 На сегодня задач нет. Отдыхаем!"
     except Exception as e:
-        return f"❌ Ошибка в коде: {str(e)}"
+        return f"❌ Ошибка в расчетах: {str(e)}"
 
 def send_to_telegram(text):
     token = os.getenv('TELEGRAM_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    repo = os.getenv('GITHUB_REPOSITORY')
+    
     if token and chat_id:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         
-        # Добавляем кнопку "Сделано"
+        # Кнопка со ссылкой на лог выполнения в GitHub
         keyboard = {
             "inline_keyboard": [[
-                {"text": "✅ Сделано!", "url": f"https://github.com/{os.getenv('GITHUB_REPOSITORY')}/actions"}
+                {"text": "✅ Сделано! (В лог)", "url": f"https://github.com/{repo}/actions"}
             ]]
         }
         
@@ -108,7 +112,10 @@ def send_to_telegram(text):
             "parse_mode": "Markdown",
             "reply_markup": keyboard
         }
-        requests.post(url, json=payload)
+        try:
+            requests.post(url, json=payload)
+        except Exception as e:
+            print(f"Ошибка отправки: {e}")
 
 if __name__ == "__main__":
     send_to_telegram(get_tasks())

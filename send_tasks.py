@@ -4,6 +4,9 @@ import re
 import ast
 from datetime import datetime
 
+# --- ТВОИ НАСТРОЙКИ ---
+LEIKA_VOLUME = 1.0  # Объем лейки в литрах
+
 def get_weather():
     api_key = os.getenv('OPENWEATHER_API_KEY')
     city = os.getenv('CITY_NAME', 'Moscow')
@@ -36,16 +39,15 @@ def get_tasks():
     if weather:
         weather_header = f"🌡 *Погода:* {weather['temp']}°C, {weather['desc']}\n💧 *Влажность:* {weather['humidity']}%\n"
         
-        # --- БЛОК УМНЫХ СОВЕТОВ ---
+        # Умные советы
         if weather['temp'] < 0:
-            weather_header += "❄️ *На улице мороз!* Полей «теплыми пятками» (вода ~30°C), чтобы не застудить корни на холодном окне.\n"
+            weather_header += "❄️ *Мороз!* Полей «теплыми пятками» (вода ~30°C), чтобы не застудить корни.\n"
         elif weather['temp'] > 25:
             weather_header += "☀️ *Жарко!* Проверь грунт у сеянцев, может высохнуть быстрее.\n"
             
         if weather['humidity'] > 70 and weather['temp'] < 0:
-            weather_header += "💨 *Важно:* На улице влажно, но дома батареи сушат воздух. Цитрусам всё равно нужно опрыскивание!\n"
-        # --------------------------
-        
+            weather_header += "💨 *Важно:* На улице влажно, но дома батареи сушат воздух. Цитрусам нужно опрыскивание!\n"
+            
         weather_header += "───────────────\n\n"
 
     try:
@@ -66,12 +68,15 @@ def get_tasks():
 
         for p in plants:
             tasks = []
-            # Проверка частоты полива
+            # Проверка полива
             if p.get('waterFreq') == 1 or d % p.get('waterFreq', 99) == 0:
                 tasks.append("💧 Полив")
-                # Проверка подкормки (с 1 или 15 числа нужных месяцев)
+                
+                # Проверка подкормки (с учетом лейки)
                 if m in p.get('feedMonths', []) and (p.get('waterFreq', 1) > 1 or d in [1, 15]):
-                    tasks.append(f"🧪 {p.get('feedNote', 'Подкормка')}")
+                    feed_info = p.get('feedNote', 'Подкормка')
+                    # Добавляем приписку про литраж
+                    tasks.append(f"🧪 *{feed_info}* (расчет на {LEIKA_VOLUME}л)")
             
             if tasks:
                 msg += f"🔹 *{p['name']}*:\n" + "\n".join([f"  — {t}" for t in tasks]) + "\n"
@@ -89,7 +94,21 @@ def send_to_telegram(text):
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
     if token and chat_id:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        requests.post(url, data={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"})
+        
+        # Добавляем кнопку "Сделано"
+        keyboard = {
+            "inline_keyboard": [[
+                {"text": "✅ Сделано!", "url": f"https://github.com/{os.getenv('GITHUB_REPOSITORY')}/actions"}
+            ]]
+        }
+        
+        payload = {
+            "chat_id": chat_id, 
+            "text": text, 
+            "parse_mode": "Markdown",
+            "reply_markup": keyboard
+        }
+        requests.post(url, json=payload)
 
 if __name__ == "__main__":
     send_to_telegram(get_tasks())

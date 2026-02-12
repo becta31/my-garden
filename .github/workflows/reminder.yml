@@ -27,7 +27,7 @@ jobs:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CITY_NAME: ${{ secrets.CITY_NAME }}
-        run: python test_ai.py
+        run: python send_tasks.py
 
       - name: Notify on Failure
         if: failure()

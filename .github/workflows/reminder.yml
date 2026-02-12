@@ -25,10 +25,10 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CITY_NAME: ${{ secrets.CITY_NAME }}
         run: python send_tasks.py
 
-      # ЭТОТ БЛОК СРАБОТАЕТ ПРИ ОШИБКЕ
       - name: Notify on Failure
         if: failure()
         run: |

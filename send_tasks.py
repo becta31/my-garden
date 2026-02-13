@@ -2,105 +2,32 @@ import os
 import requests
 import re
 import ast
+import json
 from datetime import datetime
-from openai import OpenAI
 
 
-def get_ai_advice(plants, today_list, weather_data):
-    hf_token = os.getenv("HF_API_TOKEN", "").strip()
-    if not hf_token:
-        return "⚠️ Добавьте HF_API_TOKEN в секреты GitHub."
+LAST_WEATHER_FILE = "last_weather.json"
 
-    client = OpenAI(base_url="https://router.huggingface.co/v1", api_key=hf_token)
 
-    # Уличная погода (Москва)
-    out_temp = weather_data.get("temp", 0)
-    out_hum = weather_data.get("hum", 50)
-    out_desc = weather_data.get("desc", "нет данных")
-
-    # Фикс-контекст квартиры (твой реальный)
-    indoor_context = (
-        "КВАРТИРА (фикс): температура зимой не ниже 23°C; влажность 25–35%; отопление. "
-        "Запрещено советовать 'согреть комнату' или паниковать из-за минуса на улице. "
-        "Уличная погода влияет только на риски: холодное стекло/сквозняк при проветривании/резкие перепады."
-    )
-
-    # Краткая структура коллекции (чтобы ИИ не путал группы)
-    plants_brief = "\n".join(
-        [
-            f"- {p.get('name','?')} | cat={p.get('category','?')} | loc={p.get('location','-')} | waterFreq={p.get('waterFreq','?')}"
-            for p in plants
-        ]
-    )
-
-    today_brief = ", ".join(today_list) if today_list else "сегодня по расписанию полива нет"
-
-    # --- АГЕНТ 1 (Llama): агроном по погоде ---
-    system_agro = (
-        "Ты агроном по домашней коллекции растений. "
-        "Учитывай уличную погоду как фактор риска (сквозняк, холодное стекло, пасмурность), "
-        "но НЕ давай бытовые советы и НЕ повторяй очевидности. "
-        "Запрещено: универсальные советы 'опрыскивать всё'. "
-        "Для кактусов и адениумов: НЕ опрыскивать. "
-        "Формат: 3–5 буллетов, каждый максимум 12–14 слов, без вступлений."
-    )
-
-    user_agro = (
-        f"{indoor_context}\n"
-        f"УЛИЦА (Москва): {out_temp}°C, {out_hum}%, {str(out_desc).capitalize()}.\n\n"
-        f"Коллекция:\n{plants_brief}\n\n"
-        f"Сегодня по плану: {today_brief}.\n\n"
-        "Дай рекомендации по уходу на сегодня с учётом уличной погоды как риска."
-    )
-
-    advice_llama = "• Проветривание делай коротко, избегай холодного стекла у подоконника."
+def load_last_temp():
     try:
-        res1 = client.chat.completions.create(
-            model="meta-llama/Llama-3.1-8B-Instruct",
-            messages=[
-                {"role": "system", "content": system_agro},
-                {"role": "user", "content": user_agro},
-            ],
-            max_tokens=160,
-            temperature=0.4,
-            timeout=12,
-        )
-        advice_llama = res1.choices[0].message.content.strip().replace("*", "")
-    except Exception as e:
-        print(f"Ошибка Llama: {e}")
+        with open(LAST_WEATHER_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("temp")
+    except Exception:
+        return None
 
-    # --- АГЕНТ 2 (Qwen): профессор-ревизор ---
-    system_prof = (
-        "Ты профессор-ревизор. Убери опасные или банальные советы. "
-        "Запрещено: 'греть комнату', паника из-за уличного минуса, "
-        "опрыскивание кактусов/адениумов. "
-        "Сократи и сделай точнее. Формат: 3–5 буллетов, без вступлений."
-    )
 
-    user_prof = (
-        f"{indoor_context}\n"
-        f"УЛИЦА (Москва): {out_temp}°C, {out_hum}%, {str(out_desc).capitalize()}.\n"
-        f"Сегодня по плану: {today_brief}.\n\n"
-        f"Черновик агронома:\n{advice_llama}\n\n"
-        "Верни финальные рекомендации."
-    )
-
+def save_last_temp(temp, city="Moscow"):
     try:
-        res2 = client.chat.completions.create(
-            model="Qwen/Qwen2.5-72B-Instruct",
-            messages=[
-                {"role": "system", "content": system_prof},
-                {"role": "user", "content": user_prof},
-            ],
-            max_tokens=180,
-            temperature=0.3,
-            timeout=18,
-        )
-        advice_qwen = res2.choices[0].message.content.strip().replace("*", "")
-        return f"👨‍🌾\n{advice_llama}\n\n🎓\n{advice_qwen}"
-    except Exception as e:
-        print(f"Ошибка Qwen: {e}")
-        return f"👨‍🌾\n{advice_llama}\n\n🎓\n(Профессор занят)"
+        with open(LAST_WEATHER_FILE, "w", encoding="utf-8") as f:
+            json.dump(
+                {"temp": temp, "city": city, "saved_at": datetime.now().isoformat()},
+                f,
+                ensure_ascii=False
+            )
+    except Exception:
+        pass
 
 
 def get_weather():
@@ -113,13 +40,77 @@ def get_weather():
             "temp": round(res["main"]["temp"]),
             "hum": res["main"]["humidity"],
             "desc": res["weather"][0]["description"],
+            "wind": res.get("wind", {}).get("speed", 0),
         }
-    except:
-        return {"temp": 0, "hum": 50, "desc": "нет данных"}
+    except Exception:
+        return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
+
+
+def weather_comment(weather, month_idx, delta_temp=None):
+    """
+    1 строка, только если есть триггер.
+    Москва, годовой режим + резкие качели (delta >= 8°C).
+    """
+    temp = weather.get("temp", 0)
+    wind = weather.get("wind", 0)
+
+    # 0) Качели температуры (самое полезное весной/осенью)
+    if delta_temp is not None and abs(delta_temp) >= 8:
+        if delta_temp > 0:
+            return f"📈 Резкое потепление (+{abs(delta_temp)}°). Не форсируй изменения ухода за один день."
+        else:
+            return f"📉 Резкое похолодание (−{abs(delta_temp)}°). Без резких действий, проветривание аккуратно."
+
+    # 1) Очень сильный ветер — круглый год
+    if wind >= 12:
+        return "🌬 Очень сильный ветер. Проветривай коротко, избегай сквозняка у окон."
+
+    # ЗИМА: Дек–Фев
+    if month_idx in [11, 0, 1]:
+        if temp <= -15:
+            return "🥶 Сильный мороз. Окна открывай кратко; избегай холодного стекла у растений."
+        if temp <= -10:
+            return "❄️ Мороз. Проветривание делай коротко, без сквозняка."
+        if wind >= 9:
+            return "🌬 Ветер. При проветривании избегай прямого потока на подоконник."
+        return None
+
+    # ВЕСНА: Мар–Май
+    if month_idx in [2, 3, 4]:
+        if month_idx in [2, 3] and temp <= -2:
+            return "⚠️ Возврат холода. Не форсируй сезонные изменения ухода."
+        if month_idx == 2 and temp >= 12:
+            return "🌤 Раннее потепление. Переход к весеннему режиму делай постепенно."
+        if month_idx in [3, 4] and temp >= 20:
+            return "🌤 Резкое тепло. Не меняй уход резко: делай переход плавно."
+        if wind >= 9:
+            return "🌬 Ветреный день. Проветривай аккуратно, избегай сквозняка."
+        return None
+
+    # ЛЕТО: Июн–Авг
+    if month_idx in [5, 6, 7]:
+        if temp >= 32:
+            return "☀️ Сильная жара. Проверяй пересыхание субстрата чаще обычного."
+        if temp >= 28:
+            return "☀️ Жарко. Полив ориентируй по субстрату, не по календарю."
+        return None
+
+    # ОСЕНЬ: Сен–Ноя
+    if month_idx in [8, 9, 10]:
+        if month_idx == 8 and temp <= 6:
+            return "🍂 Раннее похолодание. Переход к более спокойному режиму делай постепенно."
+        if month_idx in [9, 10] and temp <= 0:
+            return "🍂 Первый минус. Сокращай активные действия по уходу постепенно."
+        if wind >= 9:
+            return "🌬 Ветер. Проветривай коротко, избегай сквозняка у окон."
+        return None
+
+    return None
 
 
 def get_tasks():
     weather = get_weather()
+    city = os.getenv("CITY_NAME", "Moscow").strip()
 
     try:
         with open("data.js", "r", encoding="utf-8") as f:
@@ -132,18 +123,30 @@ def get_tasks():
         now = datetime.now()
         day, month_idx = now.day, now.month - 1
 
-        # Кто сегодня по плану полива (для контекста ИИ)
-        today_list = []
-        for p in plants:
-            if day % p.get("waterFreq", 99) == 0:
-                today_list.append(p.get("name", "?"))
+        # Дельта температуры к "вчера"
+        last_temp = load_last_temp()
+        delta_temp = None
+        if last_temp is not None:
+            try:
+                delta_temp = int(weather.get("temp", 0)) - int(last_temp)
+            except Exception:
+                delta_temp = None
 
-        ai_advice = get_ai_advice(plants, today_list, weather)
+        comment = weather_comment(weather, month_idx, delta_temp=delta_temp)
 
         # Формирование сообщения
         msg = f"🌿 *ПЛАН САДА — {now.strftime('%d.%m')}*\n"
-        msg += f"🌡 Улица: {weather['temp']}°C | 💧 {weather['hum']}% | {weather['desc'].capitalize()}\n\n"
-        msg += f"🤖 *РЕКОМЕНДАЦИИ ПО ПОГОДЕ:*\n_{ai_advice}_\n"
+        msg += (
+            f"🌡 Улица: {weather['temp']}°C | 💧 {weather['hum']}% | "
+            f"{str(weather['desc']).capitalize()} | 💨 {weather.get('wind', 0)} м/с\n\n"
+        )
+
+        # Погодный комментарий: только при триггере
+        if comment:
+            msg += f"🤖 {comment}\n"
+        else:
+            msg += "🤖 Погодные корректировки не требуются.\n"
+
         msg += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
         tasks_count = 0
@@ -171,6 +174,9 @@ def get_tasks():
         else:
             msg += "\n🌿 *Сегодня по расписанию только отдых!*"
 
+        # сохраняем "сегодня" для дельты завтра
+        save_last_temp(weather.get("temp", 0), city=city or "Moscow")
+
         return msg
 
     except Exception as e:
@@ -192,7 +198,7 @@ def send_to_telegram(text):
     }
     try:
         requests.post(url, json=payload, timeout=12)
-    except:
+    except Exception:
         pass
 
 

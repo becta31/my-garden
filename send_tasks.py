@@ -1,14 +1,15 @@
+# send_tasks.py
 import os
-import requests
+import json
 import re
 import ast
-import json
+import requests
 from datetime import datetime
-
 
 LAST_WEATHER_FILE = "last_weather.json"
 
 
+# ---------- Weather memory (delta-temp trigger) ----------
 def load_last_temp():
     try:
         with open(LAST_WEATHER_FILE, "r", encoding="utf-8") as f:
@@ -24,23 +25,29 @@ def save_last_temp(temp, city="Moscow"):
             json.dump(
                 {"temp": temp, "city": city, "saved_at": datetime.now().isoformat()},
                 f,
-                ensure_ascii=False
+                ensure_ascii=False,
             )
     except Exception:
         pass
 
 
+# ---------- Weather ----------
 def get_weather():
     api_key = os.getenv("OPENWEATHER_API_KEY", "").strip()
-    city = os.getenv("CITY_NAME", "Moscow").strip()
+    city = os.getenv("CITY_NAME", "Moscow").strip() or "Moscow"
+
     try:
-        url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
+        url = (
+            f"http://api.openweathermap.org/data/2.5/weather?"
+            f"q={city}&appid={api_key}&units=metric&lang=ru"
+        )
         res = requests.get(url, timeout=10).json()
+
         return {
             "temp": round(res["main"]["temp"]),
-            "hum": res["main"]["humidity"],
+            "hum": int(res["main"]["humidity"]),
             "desc": res["weather"][0]["description"],
-            "wind": res.get("wind", {}).get("speed", 0),
+            "wind": float(res.get("wind", {}).get("speed", 0)),
         }
     except Exception:
         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
@@ -49,12 +56,12 @@ def get_weather():
 def weather_comment(weather, month_idx, delta_temp=None):
     """
     1 строка, только если есть триггер.
-    Москва, годовой режим + резкие качели (delta >= 8°C).
+    Москва: годовой режим + резкие качели (delta >= 8°C).
     """
     temp = weather.get("temp", 0)
     wind = weather.get("wind", 0)
 
-    # 0) Качели температуры (самое полезное весной/осенью)
+    # 0) Резкие качели температуры
     if delta_temp is not None and abs(delta_temp) >= 8:
         if delta_temp > 0:
             return f"📈 Резкое потепление (+{abs(delta_temp)}°). Не форсируй изменения ухода за один день."
@@ -108,22 +115,60 @@ def weather_comment(weather, month_idx, delta_temp=None):
     return None
 
 
+# ---------- Stage hint (plan line) ----------
+def stage_hint(stage):
+    if not stage:
+        return None
+    s = str(stage).strip().lower()
+
+    if s in ("bloom", "цветение"):
+        return "🌸 Режим: цветение — PK (K>N) слабой дозой, без гуматов/янтарки."
+    if s in ("foliage", "листва", "рост"):
+        return "🌿 Режим: листва — умеренный рост, без резких стимуляций."
+    if s in ("recover", "восстановление"):
+        return "♻️ Режим: восстановление — без стимуляторов/PK, приоритет корни."
+    if s in ("dormant", "покой"):
+        return "🛌 Режим: покой — только вода, без подкормок."
+    return None
+
+
+# ---------- Plants data parsing ----------
+def parse_plants_from_data_js(path="data.js"):
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # extract const plantsData = [ ... ];
+    m = re.search(r"const\s+plantsData\s*=\s*(\[[\s\S]*?\])\s*;", content)
+    if not m:
+        raise ValueError("Не найден массив plantsData в data.js")
+
+    arr = m.group(1)
+
+    # remove comments
+    arr = re.sub(r"/\*[\s\S]*?\*/", "", arr)  # block comments
+    arr = re.sub(r"//.*", "", arr)            # line comments
+
+    # remove trailing commas before } or ]
+    arr = re.sub(r",\s*([}\]])", r"\1", arr)
+
+    plants = ast.literal_eval(arr)
+    if not isinstance(plants, list):
+        raise ValueError("plantsData должен быть массивом (list)")
+    return plants
+
+
+# ---------- Main message building ----------
 def get_tasks():
     weather = get_weather()
-    city = os.getenv("CITY_NAME", "Moscow").strip()
+    city = os.getenv("CITY_NAME", "Moscow").strip() or "Moscow"
 
     try:
-        with open("data.js", "r", encoding="utf-8") as f:
-            content = f.read()
-
-        match = re.search(r"const\s+plantsData\s*=\s*(\[.*\]);", content, re.DOTALL)
-        clean_js = re.sub(r"//.*", "", match.group(1))
-        plants = ast.literal_eval(clean_js)
+        plants = parse_plants_from_data_js("data.js")
 
         now = datetime.now()
         day, month_idx = now.day, now.month - 1
 
-        # Дельта температуры к "вчера"
+        # delta temp vs yesterday
         last_temp = load_last_temp()
         delta_temp = None
         if last_temp is not None:
@@ -134,14 +179,13 @@ def get_tasks():
 
         comment = weather_comment(weather, month_idx, delta_temp=delta_temp)
 
-        # Формирование сообщения
         msg = f"🌿 *ПЛАН САДА — {now.strftime('%d.%m')}*\n"
         msg += (
             f"🌡 Улица: {weather['temp']}°C | 💧 {weather['hum']}% | "
             f"{str(weather['desc']).capitalize()} | 💨 {weather.get('wind', 0)} м/с\n\n"
         )
 
-        # Погодный комментарий: только при триггере
+        # one-line weather note
         if comment:
             msg += f"🤖 {comment}\n"
         else:
@@ -153,9 +197,10 @@ def get_tasks():
         for p in plants:
             if day % p.get("waterFreq", 99) == 0:
                 tasks_count += 1
-                msg += f"📍 *{p['name'].upper()}*\n"
+                msg += f"📍 *{p.get('name','?').upper()}*\n"
 
                 task_line = "💧 Полив"
+
                 if month_idx in p.get("feedMonths", []):
                     if p.get("waterFreq", 1) > 1 or day in [1, 15]:
                         feed_info = p.get("feedNote", "Удобрение")
@@ -163,8 +208,13 @@ def get_tasks():
 
                 msg += f"{task_line}\n"
 
-                if "warning" in p:
-                    short_warn = p["warning"].replace("Мороз за окном! ", "❄️ ")
+                # stage line (new)
+                st = stage_hint(p.get("stage"))
+                if st:
+                    msg += f"└ _{st}_\n"
+
+                if "warning" in p and p["warning"]:
+                    short_warn = str(p["warning"]).replace("Мороз за окном! ", "❄️ ")
                     msg += f"└ _{short_warn}_\n"
 
                 msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
@@ -174,8 +224,8 @@ def get_tasks():
         else:
             msg += "\n🌿 *Сегодня по расписанию только отдых!*"
 
-        # сохраняем "сегодня" для дельты завтра
-        save_last_temp(weather.get("temp", 0), city=city or "Moscow")
+        # persist temp for tomorrow delta
+        save_last_temp(weather.get("temp", 0), city=city)
 
         return msg
 

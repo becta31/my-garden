@@ -12,16 +12,13 @@ LAST_WEATHER_FILE = "last_weather.json"
 # ---------- Telegram Markdown (escape) ----------
 def md_escape(text: str) -> str:
     """
-    Telegram Markdown (legacy) ломается на спецсимволах.
-    Экранируем, чтобы не падало "can't parse entities".
+    Escape для Telegram MarkdownV2.
     """
     if text is None:
         return ""
     s = str(text)
-    s = s.replace("\\", "\\\\")  # backslash first
-    for ch in ("_", "*", "[", "]", "(", ")", "~", "`", ">", "#", "+", "-", "=", "|", "{", "}", ".", "!"):
-        s = s.replace(ch, f"\\{ch}")
-    return s
+    # В MarkdownV2 экранируются: _ * [ ] ( ) ~ ` > # + - = | { } . !
+    return re.sub(r'([_*$begin:math:display$$end:math:display$\(\)~`>#+\-=|{}.!])', r'\\\1', s)
 
 
 # ---------- Weather memory (delta-temp trigger) ----------

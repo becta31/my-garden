@@ -1,4 +1,4 @@
-# send_tasks.py (Level 2: полуавтомат + антидубль + FIX парсинга JS-ключей)
+# send_tasks.py (FIX: JS keys + FIX: Telegram Markdown escape + полуавтомат)
 import os
 import json
 import re
@@ -7,6 +7,23 @@ import requests
 from datetime import datetime
 
 LAST_WEATHER_FILE = "last_weather.json"
+
+
+# ---------- Telegram Markdown (escape) ----------
+def md_escape(text: str) -> str:
+    """
+    Telegram Markdown (legacy) ломается на спецсимволах.
+    Экранируем минимум, чтобы не падало "can't parse entities".
+    """
+    if text is None:
+        return ""
+    s = str(text)
+    # escape backslash first
+    s = s.replace("\\", "\\\\")
+    # escape Telegram Markdown special chars
+    for ch in ("_", "*", "[", "]", "(", ")", "~", "`", ">", "#", "+", "-", "=", "|", "{", "}", ".", "!"):
+        s = s.replace(ch, f"\\{ch}")
+    return s
 
 
 # ---------- Weather memory (delta-temp trigger) ----------
@@ -61,18 +78,15 @@ def weather_comment(weather, month_idx, delta_temp=None):
     temp = weather.get("temp", 0)
     wind = weather.get("wind", 0)
 
-    # 0) Резкие качели температуры
     if delta_temp is not None and abs(delta_temp) >= 8:
         if delta_temp > 0:
             return f"📈 Резкое потепление (+{abs(delta_temp)}°). Не форсируй изменения ухода за один день."
         else:
             return f"📉 Резкое похолодание (−{abs(delta_temp)}°). Без резких действий, проветривание аккуратно."
 
-    # 1) Очень сильный ветер — круглый год
     if wind >= 12:
         return "🌬 Очень сильный ветер. Проветривай коротко, избегай сквозняка у окон."
 
-    # ЗИМА: Дек–Фев
     if month_idx in [11, 0, 1]:
         if temp <= -15:
             return "🥶 Сильный мороз. Окна открывай кратко; избегай холодного стекла у растений."
@@ -82,7 +96,6 @@ def weather_comment(weather, month_idx, delta_temp=None):
             return "🌬 Ветер. При проветривании избегай прямого потока на подоконник."
         return None
 
-    # ВЕСНА: Мар–Май
     if month_idx in [2, 3, 4]:
         if month_idx in [2, 3] and temp <= -2:
             return "⚠️ Возврат холода. Не форсируй сезонные изменения ухода."
@@ -94,7 +107,6 @@ def weather_comment(weather, month_idx, delta_temp=None):
             return "🌬 Ветреный день. Проветривай аккуратно, избегай сквозняка."
         return None
 
-    # ЛЕТО: Июн–Авг
     if month_idx in [5, 6, 7]:
         if temp >= 32:
             return "☀️ Сильная жара. Проверяй пересыхание субстрата чаще обычного."
@@ -102,7 +114,6 @@ def weather_comment(weather, month_idx, delta_temp=None):
             return "☀️ Жарко. Полив ориентируй по субстрату, не по календарю."
         return None
 
-    # ОСЕНЬ: Сен–Ноя
     if month_idx in [8, 9, 10]:
         if month_idx == 8 and temp <= 6:
             return "🍂 Раннее похолодание. Переход к более спокойному режиму делай постепенно."
@@ -132,7 +143,7 @@ def stage_hint(stage):
     return None
 
 
-# ---------- Level 2 hints (semi-auto) ----------
+# ---------- Level 2 hints (semi-auto + anti-duplicate) ----------
 def _text_blob(p):
     parts = []
     for k in ("feedNote", "warning", "name", "category", "location"):
@@ -211,10 +222,8 @@ def _parse_js_const_array(content: str, const_name: str):
     """
     FIX: понимает JS-объекты с ключами без кавычек:
       { month: 0, title: "...", rules: [...] }
-    превращая их в:
-      { "month": 0, "title": "...", "rules": [...] }
     """
-    m = re.search(rf"const\s+{re.escape(const_name)}\s*=\s*(\[[\s\S]*?\])\s*;", content)
+    m = re.search(rf"const\s+{re.escape(const_name)}\s*=\s*($begin:math:display$\[\\s\\S\]\*\?$end:math:display$)\s*;", content)
     if not m:
         return None
 
@@ -225,11 +234,10 @@ def _parse_js_const_array(content: str, const_name: str):
     arr = re.sub(r"//.*", "", arr)            # line comments
 
     # quote bare object keys: { month: 0 } -> { "month": 0 }
-    # also works after commas / array openings: , month: ... / [ { month: ... } ]
-    arr = re.sub(r'([{\[,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:', r'\1"\2":', arr)
+    arr = re.sub(r'([{$begin:math:display$\,\]\\s\*\)\(\[A\-Za\-z\_\]\[A\-Za\-z0\-9\_\]\*\)\\s\*\:\'\, r\'\\1\"\\2\"\:\'\, arr\)
 
-    # remove trailing commas before } or ]
-    arr = re.sub(r",\s*([}\]])", r"\1", arr)
+    \# remove trailing commas before \} or \]
+    arr \= re\.sub\(r\"\,\\s\*\(\[\}$end:math:display$])", r"\1", arr)
 
     return ast.literal_eval(arr)
 
@@ -260,6 +268,7 @@ def get_tasks():
         now = datetime.now()
         day, month_idx = now.day, now.month - 1
 
+        # delta temp vs last run (NOTE: in GitHub Actions this file won't persist unless cached)
         last_temp = load_last_temp()
         delta_temp = None
         if last_temp is not None:
@@ -270,24 +279,24 @@ def get_tasks():
 
         comment = weather_comment(weather, month_idx, delta_temp=delta_temp)
 
-        msg = f"🌿 *ПЛАН САДА — {now.strftime('%d.%m')}*\n"
+        msg = f"🌿 *{md_escape('ПЛАН САДА')} — {now.strftime('%d.%m')}*\n"
         msg += (
-            f"🌡 Улица: {weather['temp']}°C | 💧 {weather['hum']}% | "
-            f"{str(weather['desc']).capitalize()} | 💨 {weather.get('wind', 0)} м/с\n\n"
+            f"🌡 {md_escape('Улица')}: {weather['temp']}°C | 💧 {weather['hum']}% | "
+            f"{md_escape(str(weather['desc']).capitalize())} | 💨 {weather.get('wind', 0)} м/с\n\n"
         )
 
         if comment:
-            msg += f"🤖 {comment}\n"
+            msg += f"🤖 {md_escape(comment)}\n"
         else:
-            msg += "🤖 Погодные корректировки не требуются.\n"
+            msg += f"🤖 {md_escape('Погодные корректировки не требуются.')}\n"
 
         # Monthly calendar (only 1st)
         if now.day == 1 and cal:
             cur = next((x for x in cal if x.get("month") == month_idx), None)
             if cur:
-                msg += f"\n📅 *{cur.get('title','План месяца')}*\n"
+                msg += f"\n📅 *{md_escape(cur.get('title','План месяца'))}*\n"
                 for r in cur.get("rules", [])[:3]:
-                    msg += f"• {r}\n"
+                    msg += f"• {md_escape(r)}\n"
                 msg += "\n"
 
         msg += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
@@ -296,36 +305,37 @@ def get_tasks():
         for p in plants:
             if day % p.get("waterFreq", 99) == 0:
                 tasks_count += 1
-                msg += f"📍 *{p.get('name','?').upper()}*\n"
+                msg += f"📍 *{md_escape(p.get('name','?').upper())}*\n"
 
-                task_line = "💧 Полив"
+                task_line = "💧 " + md_escape("Полив")
 
                 if month_idx in p.get("feedMonths", []):
                     if p.get("waterFreq", 1) > 1 or day in [1, 15]:
                         feed_info = p.get("feedNote", "Удобрение")
-                        task_line += f" + 🧪 *{feed_info}*"
+                        task_line += f" + 🧪 *{md_escape(feed_info)}*"
 
                 msg += f"{task_line}\n"
 
                 st = stage_hint(p.get("stage"))
                 if st:
-                    msg += f"└ _{st}_\n"
+                    msg += f"└ _{md_escape(st)}_\n"
 
                 # Level 2 hints (anti-duplicate)
                 for h in semi_auto_hint(p, month_idx):
-                    msg += f"└ _{h}_\n"
+                    msg += f"└ _{md_escape(h)}_\n"
 
-                if "warning" in p and p["warning"]:
+                if p.get("warning"):
                     short_warn = str(p["warning"]).replace("Мороз за окном! ", "❄️ ")
-                    msg += f"└ _{short_warn}_\n"
+                    msg += f"└ _{md_escape(short_warn)}_\n"
 
                 msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
 
         if tasks_count > 0:
-            msg += f"\n✅ *Всего к поливу: {tasks_count}*"
+            msg += f"\n✅ *{md_escape('Всего к поливу')}: {tasks_count}*"
         else:
-            msg += "\n🌿 *Сегодня по расписанию только отдых!*"
+            msg += "\n🌿 *" + md_escape("Сегодня по расписанию только отдых!") + "*"
 
+        # persist temp for delta trigger (needs cache in Actions to persist)
         save_last_temp(weather.get("temp", 0), city=city)
 
         return msg

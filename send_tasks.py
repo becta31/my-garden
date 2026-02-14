@@ -132,29 +132,33 @@ def stage_hint(stage):
     return None
 
 
-# ---------- Plants data parsing ----------
-def parse_plants_from_data_js(path="data.js"):
+# ---------- data.js parsing (plantsData + careCalendar) ----------
+def _parse_js_const_array(content: str, const_name: str):
+    m = re.search(rf"const\s+{re.escape(const_name)}\s*=\s*(\[[\s\S]*?\])\s*;", content)
+    if not m:
+        return None
+
+    arr = m.group(1)
+    arr = re.sub(r"/\*[\s\S]*?\*/", "", arr)
+    arr = re.sub(r"//.*", "", arr)
+    arr = re.sub(r",\s*([}\]])", r"\1", arr)
+
+    return ast.literal_eval(arr)
+
+
+def parse_data_js(path="data.js"):
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # extract const plantsData = [ ... ];
-    m = re.search(r"const\s+plantsData\s*=\s*(\[[\s\S]*?\])\s*;", content)
-    if not m:
+    plants = _parse_js_const_array(content, "plantsData")
+    if not isinstance(plants, list):
         raise ValueError("Не найден массив plantsData в data.js")
 
-    arr = m.group(1)
+    cal = _parse_js_const_array(content, "careCalendar")
+    if cal is not None and not isinstance(cal, list):
+        cal = None
 
-    # remove comments
-    arr = re.sub(r"/\*[\s\S]*?\*/", "", arr)  # block comments
-    arr = re.sub(r"//.*", "", arr)            # line comments
-
-    # remove trailing commas before } or ]
-    arr = re.sub(r",\s*([}\]])", r"\1", arr)
-
-    plants = ast.literal_eval(arr)
-    if not isinstance(plants, list):
-        raise ValueError("plantsData должен быть массивом (list)")
-    return plants
+    return plants, cal
 
 
 # ---------- Main message building ----------
@@ -163,12 +167,11 @@ def get_tasks():
     city = os.getenv("CITY_NAME", "Moscow").strip() or "Moscow"
 
     try:
-        plants = parse_plants_from_data_js("data.js")
+        plants, cal = parse_data_js("data.js")
 
         now = datetime.now()
         day, month_idx = now.day, now.month - 1
 
-        # delta temp vs yesterday
         last_temp = load_last_temp()
         delta_temp = None
         if last_temp is not None:
@@ -185,11 +188,19 @@ def get_tasks():
             f"{str(weather['desc']).capitalize()} | 💨 {weather.get('wind', 0)} м/с\n\n"
         )
 
-        # one-line weather note
         if comment:
             msg += f"🤖 {comment}\n"
         else:
             msg += "🤖 Погодные корректировки не требуются.\n"
+
+        # Monthly calendar block: ONLY on day 1
+        if now.day == 1 and cal:
+            cur = next((x for x in cal if x.get("month") == month_idx), None)
+            if cur:
+                msg += f"\n📅 *{cur.get('title','План месяца')}*\n"
+                for r in cur.get("rules", [])[:3]:
+                    msg += f"• {r}\n"
+                msg += "\n"
 
         msg += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
 
@@ -208,7 +219,6 @@ def get_tasks():
 
                 msg += f"{task_line}\n"
 
-                # stage line (new)
                 st = stage_hint(p.get("stage"))
                 if st:
                     msg += f"└ _{st}_\n"
@@ -224,7 +234,6 @@ def get_tasks():
         else:
             msg += "\n🌿 *Сегодня по расписанию только отдых!*"
 
-        # persist temp for tomorrow delta
         save_last_temp(weather.get("temp", 0), city=city)
 
         return msg

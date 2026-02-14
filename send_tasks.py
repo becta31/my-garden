@@ -1,4 +1,4 @@
-# send_tasks.py (FIX: JS keys + FIX: Telegram Markdown escape + полуавтомат)
+# send_tasks.py (WORKING: JS keys fix + Telegram Markdown escape + semi-auto hints)
 import os
 import json
 import re
@@ -13,14 +13,12 @@ LAST_WEATHER_FILE = "last_weather.json"
 def md_escape(text: str) -> str:
     """
     Telegram Markdown (legacy) ломается на спецсимволах.
-    Экранируем минимум, чтобы не падало "can't parse entities".
+    Экранируем, чтобы не падало "can't parse entities".
     """
     if text is None:
         return ""
     s = str(text)
-    # escape backslash first
-    s = s.replace("\\", "\\\\")
-    # escape Telegram Markdown special chars
+    s = s.replace("\\", "\\\\")  # backslash first
     for ch in ("_", "*", "[", "]", "(", ")", "~", "`", ">", "#", "+", "-", "=", "|", "{", "}", ".", "!"):
         s = s.replace(ch, f"\\{ch}")
     return s
@@ -78,15 +76,17 @@ def weather_comment(weather, month_idx, delta_temp=None):
     temp = weather.get("temp", 0)
     wind = weather.get("wind", 0)
 
+    # резкие качели
     if delta_temp is not None and abs(delta_temp) >= 8:
         if delta_temp > 0:
             return f"📈 Резкое потепление (+{abs(delta_temp)}°). Не форсируй изменения ухода за один день."
-        else:
-            return f"📉 Резкое похолодание (−{abs(delta_temp)}°). Без резких действий, проветривание аккуратно."
+        return f"📉 Резкое похолодание (−{abs(delta_temp)}°). Без резких действий, проветривание аккуратно."
 
+    # ветер (круглый год)
     if wind >= 12:
         return "🌬 Очень сильный ветер. Проветривай коротко, избегай сквозняка у окон."
 
+    # зима
     if month_idx in [11, 0, 1]:
         if temp <= -15:
             return "🥶 Сильный мороз. Окна открывай кратко; избегай холодного стекла у растений."
@@ -96,6 +96,7 @@ def weather_comment(weather, month_idx, delta_temp=None):
             return "🌬 Ветер. При проветривании избегай прямого потока на подоконник."
         return None
 
+    # весна
     if month_idx in [2, 3, 4]:
         if month_idx in [2, 3] and temp <= -2:
             return "⚠️ Возврат холода. Не форсируй сезонные изменения ухода."
@@ -107,6 +108,7 @@ def weather_comment(weather, month_idx, delta_temp=None):
             return "🌬 Ветреный день. Проветривай аккуратно, избегай сквозняка."
         return None
 
+    # лето
     if month_idx in [5, 6, 7]:
         if temp >= 32:
             return "☀️ Сильная жара. Проверяй пересыхание субстрата чаще обычного."
@@ -114,6 +116,7 @@ def weather_comment(weather, month_idx, delta_temp=None):
             return "☀️ Жарко. Полив ориентируй по субстрату, не по календарю."
         return None
 
+    # осень
     if month_idx in [8, 9, 10]:
         if month_idx == 8 and temp <= 6:
             return "🍂 Раннее похолодание. Переход к более спокойному режиму делай постепенно."
@@ -131,7 +134,6 @@ def stage_hint(stage):
     if not stage:
         return None
     s = str(stage).strip().lower()
-
     if s in ("bloom", "цветение"):
         return "🌸 Режим: цветение — PK (K>N) слабой дозой, без гуматов/янтарки."
     if s in ("foliage", "листва", "рост"):
@@ -159,17 +161,15 @@ def _already_covered(blob: str, keywords):
 
 def semi_auto_hint(p, month_idx):
     """
-    0–2 коротких подсказки про удобрения/режим.
-    Антидубль: если ключевые слова уже есть в feedNote/warning — не повторяем.
+    0–2 подсказки. Не дублируем то, что уже есть в feedNote/warning.
     """
     name = str(p.get("name", "")).lower()
     cat = str(p.get("category", "")).lower()
     stage = str(p.get("stage", "")).lower()
     blob = _text_blob(p)
-
     hints = []
 
-    # Dormant
+    # dormant
     if stage in ("dormant", "покой"):
         if ("гранат" in name or "pomegranate" in name) and month_idx in [2, 3]:
             if not _already_covered(blob, ["акварин", "0.7", "1 г/л", "1г/л"]):
@@ -179,39 +179,38 @@ def semi_auto_hint(p, month_idx):
                 hints.append("💡 Покой: без подкормок; питание возвращаем только при явном росте.")
         return hints[:2]
 
-    # Recover
+    # recover
     if stage in ("recover", "восстановление"):
         if not _already_covered(blob, ["без pk", "без мкф", "восстанов"]):
             hints.append("💡 Восстановление: без МКФ/PK; максимум мягкий Акварин 0.3 г/л редко.")
         return hints[:2]
 
-    # Osmocote (March)
-    if month_idx == 2 and stage in ("foliage", "листва", "рост"):
-        if cat in ("fruit", "adenium"):
-            if not _already_covered(blob, ["осмокот", "osmocote"]):
-                if "цитрус" in name or "лимон" in name:
-                    hints.append("💡 Старт сезона: можно заложить Осмокот Pro 3–4 г/л субстрата.")
-                elif "адениум" in name:
-                    hints.append("💡 Адениум: Осмокот умеренно (≈3 г/л) и без частых жидких подкормок.")
+    # osmocote reminder (march)
+    if month_idx == 2 and stage in ("foliage", "листва", "рост") and cat in ("fruit", "adenium"):
+        if not _already_covered(blob, ["осмокот", "osmocote"]):
+            if "цитрус" in name or "лимон" in name:
+                hints.append("💡 Старт сезона: можно заложить Осмокот Pro 3–4 г/л субстрата.")
+            elif "адениум" in name:
+                hints.append("💡 Адениум: Осмокот умеренно (≈3 г/л) и без частых жидких подкормок.")
 
-    # Aquarin (growth season)
+    # aquarin growth season
     if stage in ("foliage", "листва", "рост") and month_idx in [2, 3, 4, 5]:
         if cat not in ("cactus", "succulent"):
             if not _already_covered(blob, ["акварин", "18-18-18", "0.5", "1 г/л", "1г/л"]):
                 hints.append("💡 Рост: Акварин 0.5–1 г/л раз в 2–3 недели по активности роста.")
         else:
-            if not _already_covered(blob, ["0.3", "0.5", "раз в 3", "3–4"]):
+            if not _already_covered(blob, ["0.3", "0.5", "3–4 недели", "3-4 недели"]):
                 hints.append("💡 Суккуленты: питание редко (0.3–0.5 г/л раз в 3–4 недели).")
 
-    # MKF (bloom targets)
+    # MKF bloom targets
     bloom_targets = ("фиал" in name) or ("глокс" in name) or ("каланхо" in name)
     if stage in ("bloom", "цветение") and bloom_targets and month_idx in [3, 4, 5, 6, 7]:
         if not _already_covered(blob, ["мкф", "монофосфат", "0.5", "1 г/л", "1г/л"]):
             hints.append("💡 По бутонам: МКФ 0.5–1 г/л курсом 2–3 полива (не постоянно).")
 
-    # Orchid gentle reminder
+    # orchid gentle reminder
     if "орхиде" in name and stage in ("foliage", "листва", "рост") and month_idx in [2, 3, 4, 5, 6, 7]:
-        if not _already_covered(blob, ["0.3", "0.5", "раз в 2", "2–3 недели"]):
+        if not _already_covered(blob, ["0.3", "0.5", "2–3 недели", "2-3 недели"]):
             hints.append("💡 Орхидея: дозы мягкие (0.3–0.5 г/л) и редко (раз в 2–3 недели).")
 
     return hints[:2]
@@ -268,7 +267,6 @@ def get_tasks():
         now = datetime.now()
         day, month_idx = now.day, now.month - 1
 
-        # delta temp vs last run (NOTE: in GitHub Actions this file won't persist unless cached)
         last_temp = load_last_temp()
         delta_temp = None
         if last_temp is not None:
@@ -285,12 +283,9 @@ def get_tasks():
             f"{md_escape(str(weather['desc']).capitalize())} | 💨 {weather.get('wind', 0)} м/с\n\n"
         )
 
-        if comment:
-            msg += f"🤖 {md_escape(comment)}\n"
-        else:
-            msg += f"🤖 {md_escape('Погодные корректировки не требуются.')}\n"
+        msg += f"🤖 {md_escape(comment) if comment else md_escape('Погодные корректировки не требуются.')}\n"
 
-        # Monthly calendar (only 1st)
+        # calendar only on 1st
         if now.day == 1 and cal:
             cur = next((x for x in cal if x.get("month") == month_idx), None)
             if cur:
@@ -320,7 +315,6 @@ def get_tasks():
                 if st:
                     msg += f"└ _{md_escape(st)}_\n"
 
-                # Level 2 hints (anti-duplicate)
                 for h in semi_auto_hint(p, month_idx):
                     msg += f"└ _{md_escape(h)}_\n"
 
@@ -335,9 +329,7 @@ def get_tasks():
         else:
             msg += "\n🌿 *" + md_escape("Сегодня по расписанию только отдых!") + "*"
 
-        # persist temp for delta trigger (needs cache in Actions to persist)
         save_last_temp(weather.get("temp", 0), city=city)
-
         return msg
 
     except Exception as e:

@@ -1,4 +1,4 @@
-# send_tasks.py (FIXED: MarkdownV2 escape + Telegram fallback + JS parser + semi-auto hints + feedShort)
+# send_tasks.py (Checklist format: "СДЕЛАТЬ СЕГОДНЯ" + MarkdownV2 + fallback + JS parser)
 import os
 import json
 import re
@@ -13,8 +13,7 @@ LAST_WEATHER_FILE = "last_weather.json"
 def md_escape(text) -> str:
     """
     Escape для Telegram MarkdownV2.
-    Экранируются символы: _ * [ ] ( ) ~ ` > # + - = | { } . !
-    Важно: backslash экранируем первым.
+    Экранируем backslash и спецсимволы: _ * [ ] ( ) ~ ` > # + - = | { } . !
     """
     if text is None:
         return ""
@@ -68,20 +67,14 @@ def get_weather():
 
 
 def weather_comment(weather, month_idx, delta_temp=None):
-    """
-    1 строка, только если есть триггер.
-    Москва: годовой режим + резкие качели (delta >= 8°C).
-    """
     temp = weather.get("temp", 0)
     wind = weather.get("wind", 0)
 
-    # резкие качели
     if delta_temp is not None and abs(delta_temp) >= 8:
         if delta_temp > 0:
             return f"📈 Резкое потепление (+{abs(delta_temp)}°). Не форсируй изменения ухода за один день."
         return f"📉 Резкое похолодание (−{abs(delta_temp)}°). Без резких действий, проветривание аккуратно."
 
-    # ветер (круглый год)
     if wind >= 12:
         return "🌬 Очень сильный ветер. Проветривай коротко, избегай сквозняка у окон."
 
@@ -159,16 +152,12 @@ def _already_covered(blob: str, keywords):
 
 
 def semi_auto_hint(p, month_idx):
-    """
-    0–2 подсказки. Не дублируем то, что уже есть в feedNote/feedShort/warning.
-    """
     name = str(p.get("name", "")).lower()
     cat = str(p.get("category", "")).lower()
     stage = str(p.get("stage", "")).lower()
     blob = _text_blob(p)
     hints = []
 
-    # dormant
     if stage in ("dormant", "покой"):
         if ("гранат" in name or "pomegranate" in name) and month_idx in [2, 3]:
             if not _already_covered(blob, ["акварин", "0.7", "1 г/л", "1г/л"]):
@@ -178,13 +167,11 @@ def semi_auto_hint(p, month_idx):
                 hints.append("💡 Покой: без подкормок; питание возвращаем только при явном росте.")
         return hints[:2]
 
-    # recover
     if stage in ("recover", "восстановление"):
         if not _already_covered(blob, ["без pk", "без мкф", "восстанов"]):
             hints.append("💡 Восстановление: без МКФ/PK; максимум мягкий Акварин 0.3 г/л редко.")
         return hints[:2]
 
-    # osmocote reminder (march)
     if month_idx == 2 and stage in ("foliage", "листва", "рост") and cat in ("fruit", "adenium"):
         if not _already_covered(blob, ["осмокот", "osmocote"]):
             if "цитрус" in name or "лимон" in name:
@@ -192,7 +179,6 @@ def semi_auto_hint(p, month_idx):
             elif "адениум" in name:
                 hints.append("💡 Адениум: Осмокот умеренно (≈3 г/л) и без частых жидких подкормок.")
 
-    # aquarin growth season
     if stage in ("foliage", "листва", "рост") and month_idx in [2, 3, 4, 5]:
         if cat not in ("cactus", "succulent"):
             if not _already_covered(blob, ["акварин", "18-18-18", "0.5", "1 г/л", "1г/л"]):
@@ -201,13 +187,11 @@ def semi_auto_hint(p, month_idx):
             if not _already_covered(blob, ["0.3", "0.5", "3–4 недели", "3-4 недели"]):
                 hints.append("💡 Суккуленты: питание редко (0.3–0.5 г/л раз в 3–4 недели).")
 
-    # MKF bloom targets
     bloom_targets = ("фиал" in name) or ("глокс" in name) or ("каланхо" in name)
     if stage in ("bloom", "цветение") and bloom_targets and month_idx in [3, 4, 5, 6, 7]:
         if not _already_covered(blob, ["мкф", "монофосфат", "0.5", "1 г/л", "1г/л"]):
             hints.append("💡 По бутонам: МКФ 0.5–1 г/л курсом 2–3 полива (не постоянно).")
 
-    # orchid gentle reminder
     if "орхиде" in name and stage in ("foliage", "листва", "рост") and month_idx in [2, 3, 4, 5, 6, 7]:
         if not _already_covered(blob, ["0.3", "0.5", "2–3 недели", "2-3 недели"]):
             hints.append("💡 Орхидея: дозы мягкие (0.3–0.5 г/л) и редко (раз в 2–3 недели).")
@@ -218,28 +202,23 @@ def semi_auto_hint(p, month_idx):
 # ---------- data.js parsing (plantsData + careCalendar) ----------
 def _parse_js_const_array(content: str, const_name: str):
     """
-    Парсит массив из data.js вида:
+    Парсит массив из data.js:
       const plantsData = [ ... ];
       const careCalendar = [ ... ];
     Поддерживает ключи без кавычек: { month: 0, title: "...", rules: [...] }
     """
-    m = re.search(
-        rf"const\s+{re.escape(const_name)}\s*=\s*(\[[\s\S]*?\])\s*;",
-        content
-    )
+    m = re.search(rf"const\s+{re.escape(const_name)}\s*=\s*(\[[\s\S]*?\])\s*;", content)
     if not m:
         return None
 
     arr = m.group(1)
+    arr = re.sub(r"/\*[\s\S]*?\*/", "", arr)
+    arr = re.sub(r"//.*", "", arr)
 
-    # remove comments
-    arr = re.sub(r"/\*[\s\S]*?\*/", "", arr)  # block comments
-    arr = re.sub(r"//.*", "", arr)            # line comments
-
-    # quote bare object keys: { month: 0 } -> { "month": 0 }
+    # { month: 0 } -> { "month": 0 }
     arr = re.sub(r'([{\[,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:', r'\1"\2":', arr)
 
-    # remove trailing commas before } or ]
+    # trailing commas
     arr = re.sub(r",\s*([}\]])", r"\1", arr)
 
     return ast.literal_eval(arr)
@@ -260,11 +239,17 @@ def parse_data_js(path="data.js"):
     return plants, cal
 
 
-def feed_text_for_today(p):
-    """
-    Берём краткий текст если есть (feedShort), иначе полный (feedNote).
-    """
-    return p.get("feedShort") or p.get("feedNote") or "Удобрение"
+# ---------- Checklist helpers ----------
+def has_feed_today(p, month_idx, day) -> bool:
+    if month_idx not in p.get("feedMonths", []):
+        return False
+    # как раньше: если waterFreq > 1 или день 1/15
+    return (p.get("waterFreq", 1) > 1) or (day in [1, 15])
+
+
+def pick_feed_text(p) -> str:
+    # короткая версия в приоритете
+    return p.get("feedShort") or p.get("feedNote") or ""
 
 
 # ---------- Main message building ----------
@@ -288,15 +273,15 @@ def get_tasks():
 
         comment = weather_comment(weather, month_idx, delta_temp=delta_temp)
 
-        msg = f"🌿 *{md_escape('ПЛАН САДА')} — {md_escape(now.strftime('%d.%m'))}*\n"
+        msg = f"🌿 *{md_escape('ПЛАН САДА — ' + now.strftime('%d.%m'))}*\n"
         msg += (
-            f"🌡 {md_escape('Улица')}: {weather['temp']}°C | 💧 {weather['hum']}% | "
-            f"{md_escape(str(weather['desc']).capitalize())} | 💨 {weather.get('wind', 0)} м/с\n\n"
+            f"🌡 {md_escape('Улица')}: {md_escape(weather['temp'])}°C | 💧 {md_escape(weather['hum'])}% | "
+            f"{md_escape(str(weather['desc']).capitalize())} | 💨 {md_escape(weather.get('wind', 0))} м/с\n\n"
         )
 
         msg += f"🤖 {md_escape(comment) if comment else md_escape('Погодные корректировки не требуются.')}\n"
 
-        # calendar only on 1st
+        # monthly calendar only on 1st
         if now.day == 1 and cal:
             cur = next((x for x in cal if x.get("month") == month_idx), None)
             if cur:
@@ -305,46 +290,57 @@ def get_tasks():
                     msg += f"• {md_escape(r)}\n"
                 msg += "\n"
 
-        msg += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+        msg += md_escape("⎯" * 16) + "\n"
 
         tasks_count = 0
         for p in plants:
-            if day % p.get("waterFreq", 99) == 0:
-                tasks_count += 1
-                msg += f"📍 *{md_escape(p.get('name','?').upper())}*\n"
+            if day % p.get("waterFreq", 99) != 0:
+                continue
 
-                task_line = "💧 " + md_escape("Полив")
+            tasks_count += 1
+            name_up = str(p.get("name", "?")).upper()
 
-                if month_idx in p.get("feedMonths", []):
-                    if p.get("waterFreq", 1) > 1 or day in [1, 15]:
-                        feed_info = feed_text_for_today(p)
-                        task_line += f" + 🧪 *{md_escape(feed_info)}*"
+            # actions today
+            feed_today = has_feed_today(p, month_idx, day)
+            actions = ["☑ 💧 Полить"]
+            if feed_today:
+                actions.append("☑ 🧪 Подкормить")
 
-                msg += f"{task_line}\n"
+            msg += f"\n📍 *{md_escape(name_up)}*\n"
+            msg += f"🟢 *{md_escape('СДЕЛАТЬ СЕГОДНЯ')}:*\n"
+            for a in actions:
+                msg += f"{md_escape(a)}\n"
 
-                st = stage_hint(p.get("stage"))
-                if st:
-                    msg += f"└ _{md_escape(st)}_\n"
+            # formula (only if feed today)
+            if feed_today:
+                feed_text = pick_feed_text(p).strip()
+                if feed_text:
+                    msg += f"\n💊 *{md_escape('Формула')}:*\n{md_escape(feed_text)}\n"
 
-                for h in semi_auto_hint(p, month_idx):
-                    msg += f"└ _{md_escape(h)}_\n"
+            # hints
+            st = stage_hint(p.get("stage"))
+            if st:
+                msg += f"\n🔎 {md_escape('Подсказки')}:\n└ _{md_escape(st)}_\n"
 
-                if p.get("warning"):
-                    short_warn = str(p["warning"]).replace("Мороз за окном! ", "❄️ ")
-                    msg += f"└ _{md_escape(short_warn)}_\n"
+            # semi-auto hints
+            for h in semi_auto_hint(p, month_idx):
+                msg += f"└ _{md_escape(h)}_\n"
 
-                msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
+            # warnings
+            if p.get("warning"):
+                msg += f"└ _{md_escape(str(p['warning']))}_\n"
+
+            msg += md_escape("┈" * 16) + "\n"
 
         if tasks_count > 0:
-            msg += f"\n✅ *{md_escape('Всего к поливу')}: {tasks_count}*"
+            msg += f"\n✅ *{md_escape('Всего задач сегодня')}: {md_escape(tasks_count)}*"
         else:
-            msg += "\n🌿 *" + md_escape("Сегодня по расписанию только отдых!") + "*"
+            msg += f"\n🌿 *{md_escape('Сегодня по расписанию только отдых!')}*"
 
         save_last_temp(weather.get("temp", 0), city=city)
         return msg
 
     except Exception as e:
-        # Важно: тут лучше plain text, чтобы точно дошло
         return f"Ошибка парсинга базы: {e}"
 
 
@@ -371,7 +367,7 @@ def send_to_telegram(text):
 
         print("Telegram error (MarkdownV2):", r.status_code, r.text)
 
-        # 2) Fallback to plain text (remove backslashes)
+        # 2) Fallback to plain text
         payload_plain = {
             "chat_id": chat_id,
             "text": text.replace("\\", ""),

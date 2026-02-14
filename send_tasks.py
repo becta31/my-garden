@@ -1,4 +1,4 @@
-# send_tasks.py (FIXED: MarkdownV2 escape + Telegram fallback + JS parser + semi-auto hints)
+# send_tasks.py (FIXED: MarkdownV2 escape + Telegram fallback + JS parser + semi-auto hints + feedShort)
 import os
 import json
 import re
@@ -10,16 +10,16 @@ LAST_WEATHER_FILE = "last_weather.json"
 
 
 # ---------- Telegram MarkdownV2 (escape) ----------
-def md_escape(text: str) -> str:
+def md_escape(text) -> str:
     """
     Escape для Telegram MarkdownV2.
-    Сначала экранируем backslash, потом спецсимволы MarkdownV2:
-    _ * [ ] ( ) ~ ` > # + - = | { } . !
+    Экранируются символы: _ * [ ] ( ) ~ ` > # + - = | { } . !
+    Важно: backslash экранируем первым.
     """
     if text is None:
         return ""
     s = str(text)
-    s = s.replace("\\", "\\\\")  # backslash first
+    s = s.replace("\\", "\\\\")
     return re.sub(r"([_*$begin:math:display$$end:math:display$$begin:math:text$$end:math:text$~`>#+\-=|{}.!])", r"\\\1", s)
 
 
@@ -147,7 +147,7 @@ def stage_hint(stage):
 # ---------- Level 2 hints (semi-auto + anti-duplicate) ----------
 def _text_blob(p):
     parts = []
-    for k in ("feedNote", "warning", "name", "category", "location"):
+    for k in ("feedNote", "feedShort", "warning", "name", "category", "location"):
         v = p.get(k)
         if v:
             parts.append(str(v))
@@ -160,7 +160,7 @@ def _already_covered(blob: str, keywords):
 
 def semi_auto_hint(p, month_idx):
     """
-    0–2 подсказки. Не дублируем то, что уже есть в feedNote/warning.
+    0–2 подсказки. Не дублируем то, что уже есть в feedNote/feedShort/warning.
     """
     name = str(p.get("name", "")).lower()
     cat = str(p.get("category", "")).lower()
@@ -260,6 +260,13 @@ def parse_data_js(path="data.js"):
     return plants, cal
 
 
+def feed_text_for_today(p):
+    """
+    Берём краткий текст если есть (feedShort), иначе полный (feedNote).
+    """
+    return p.get("feedShort") or p.get("feedNote") or "Удобрение"
+
+
 # ---------- Main message building ----------
 def get_tasks():
     weather = get_weather()
@@ -283,15 +290,15 @@ def get_tasks():
 
         msg = f"🌿 *{md_escape('ПЛАН САДА')} — {md_escape(now.strftime('%d.%m'))}*\n"
         msg += (
-            f"🌡 {md_escape('Улица')}: {md_escape(weather['temp'])}°C | 💧 {md_escape(weather['hum'])}% | "
-            f"{md_escape(str(weather['desc']).capitalize())} | 💨 {md_escape(weather.get('wind', 0))} м/с\n\n"
+            f"🌡 {md_escape('Улица')}: {weather['temp']}°C | 💧 {weather['hum']}% | "
+            f"{md_escape(str(weather['desc']).capitalize())} | 💨 {weather.get('wind', 0)} м/с\n\n"
         )
 
         msg += f"🤖 {md_escape(comment) if comment else md_escape('Погодные корректировки не требуются.')}\n"
 
         # calendar only on 1st
         if now.day == 1 and cal:
-            cur = next((x for x in cal if x.get('month') == month_idx), None)
+            cur = next((x for x in cal if x.get("month") == month_idx), None)
             if cur:
                 msg += f"\n📅 *{md_escape(cur.get('title','План месяца'))}*\n"
                 for r in cur.get("rules", [])[:3]:
@@ -310,7 +317,7 @@ def get_tasks():
 
                 if month_idx in p.get("feedMonths", []):
                     if p.get("waterFreq", 1) > 1 or day in [1, 15]:
-                        feed_info = p.get("feedNote", "Удобрение")
+                        feed_info = feed_text_for_today(p)
                         task_line += f" + 🧪 *{md_escape(feed_info)}*"
 
                 msg += f"{task_line}\n"
@@ -329,7 +336,7 @@ def get_tasks():
                 msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
 
         if tasks_count > 0:
-            msg += f"\n✅ *{md_escape('Всего к поливу')}: {md_escape(tasks_count)}*"
+            msg += f"\n✅ *{md_escape('Всего к поливу')}: {tasks_count}*"
         else:
             msg += "\n🌿 *" + md_escape("Сегодня по расписанию только отдых!") + "*"
 
@@ -337,6 +344,7 @@ def get_tasks():
         return msg
 
     except Exception as e:
+        # Важно: тут лучше plain text, чтобы точно дошло
         return f"Ошибка парсинга базы: {e}"
 
 
@@ -363,7 +371,7 @@ def send_to_telegram(text):
 
         print("Telegram error (MarkdownV2):", r.status_code, r.text)
 
-        # 2) Fallback to plain text
+        # 2) Fallback to plain text (remove backslashes)
         payload_plain = {
             "chat_id": chat_id,
             "text": text.replace("\\", ""),

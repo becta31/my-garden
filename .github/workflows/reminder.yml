@@ -21,6 +21,15 @@ jobs:
         run: |
           pip install requests google-genai openai
 
+      # ✅ Восстанавливаем last_weather.json между запусками
+      - name: Restore weather cache
+        uses: actions/cache@v4
+        with:
+          path: last_weather.json
+          key: garden-weather-cache
+          restore-keys: |
+            garden-weather-cache
+
       - name: Run reminder script
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
@@ -30,6 +39,13 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CITY_NAME: ${{ secrets.CITY_NAME }}
         run: python send_tasks.py
+
+      # ✅ Сохраняем last_weather.json (чтобы завтра была “дельта”)
+      - name: Save weather cache
+        uses: actions/cache@v4
+        with:
+          path: last_weather.json
+          key: garden-weather-cache
 
       - name: Notify on Failure
         if: failure()

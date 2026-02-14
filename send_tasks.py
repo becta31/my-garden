@@ -348,7 +348,7 @@ def send_to_telegram(text):
     payload = {
         "chat_id": chat_id,
         "text": text,
-        "parse_mode": "Markdown",
+        "parse_mode": "MarkdownV2",
         "reply_markup": {"inline_keyboard": [[{"text": "✅ Сделано!", "callback_data": "done"}]]},
     }
     try:

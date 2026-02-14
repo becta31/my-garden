@@ -222,7 +222,10 @@ def _parse_js_const_array(content: str, const_name: str):
     FIX: понимает JS-объекты с ключами без кавычек:
       { month: 0, title: "...", rules: [...] }
     """
-    m = re.search(rf"const\s+{re.escape(const_name)}\s*=\s*($begin:math:display$\[\\s\\S\]\*\?$end:math:display$)\s*;", content)
+    m = re.search(
+        rf"const\s+{re.escape(const_name)}\s*=\s*($begin:math:display$\[\\s\\S\]\*\?$end:math:display$)\s*;",
+        content,
+    )
     if not m:
         return None
 

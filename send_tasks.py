@@ -219,12 +219,14 @@ def semi_auto_hint(p, month_idx):
 # ---------- data.js parsing (plantsData + careCalendar) ----------
 def _parse_js_const_array(content: str, const_name: str):
     """
-    FIX: понимает JS-объекты с ключами без кавычек:
-      { month: 0, title: "...", rules: [...] }
+    Парсит массив из data.js вида:
+      const plantsData = [ ... ];
+      const careCalendar = [ ... ];
+    Поддерживает ключи без кавычек: { month: 0, title: "...", rules: [...] }
     """
     m = re.search(
-        rf"const\s+{re.escape(const_name)}\s*=\s*($begin:math:display$\[\\s\\S\]\*\?$end:math:display$)\s*;",
-        content,
+        rf"const\s+{re.escape(const_name)}\s*=\s*(\[[\s\S]*?\])\s*;",
+        content
     )
     if not m:
         return None
@@ -236,10 +238,10 @@ def _parse_js_const_array(content: str, const_name: str):
     arr = re.sub(r"//.*", "", arr)            # line comments
 
     # quote bare object keys: { month: 0 } -> { "month": 0 }
-    arr = re.sub(r'([{$begin:math:display$\,\]\\s\*\)\(\[A\-Za\-z\_\]\[A\-Za\-z0\-9\_\]\*\)\\s\*\:\'\, r\'\\1\"\\2\"\:\'\, arr\)
+    arr = re.sub(r'([{\[,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:', r'\1"\2":', arr)
 
-    \# remove trailing commas before \} or \]
-    arr \= re\.sub\(r\"\,\\s\*\(\[\}$end:math:display$])", r"\1", arr)
+    # remove trailing commas before } or ]
+    arr = re.sub(r",\s*([}\]])", r"\1", arr)
 
     return ast.literal_eval(arr)
 

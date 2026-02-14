@@ -1,4 +1,4 @@
-# send_tasks.py (WORKING: JS keys fix + Telegram Markdown escape + semi-auto hints)
+# send_tasks.py (FIXED: MarkdownV2 escape + Telegram fallback + JS parser + semi-auto hints)
 import os
 import json
 import re
@@ -9,16 +9,18 @@ from datetime import datetime
 LAST_WEATHER_FILE = "last_weather.json"
 
 
-# ---------- Telegram Markdown (escape) ----------
+# ---------- Telegram MarkdownV2 (escape) ----------
 def md_escape(text: str) -> str:
     """
     Escape для Telegram MarkdownV2.
+    Сначала экранируем backslash, потом спецсимволы MarkdownV2:
+    _ * [ ] ( ) ~ ` > # + - = | { } . !
     """
     if text is None:
         return ""
     s = str(text)
-    # В MarkdownV2 экранируются: _ * [ ] ( ) ~ ` > # + - = | { } . !
-    return re.sub(r'([_*$begin:math:display$$end:math:display$\(\)~`>#+\-=|{}.!])', r'\\\1', s)
+    s = s.replace("\\", "\\\\")  # backslash first
+    return re.sub(r"([_*$begin:math:display$$end:math:display$$begin:math:text$$end:math:text$~`>#+\-=|{}.!])", r"\\\1", s)
 
 
 # ---------- Weather memory (delta-temp trigger) ----------
@@ -279,17 +281,17 @@ def get_tasks():
 
         comment = weather_comment(weather, month_idx, delta_temp=delta_temp)
 
-        msg = f"🌿 *{md_escape('ПЛАН САДА')} — {now.strftime('%d.%m')}*\n"
+        msg = f"🌿 *{md_escape('ПЛАН САДА')} — {md_escape(now.strftime('%d.%m'))}*\n"
         msg += (
-            f"🌡 {md_escape('Улица')}: {weather['temp']}°C | 💧 {weather['hum']}% | "
-            f"{md_escape(str(weather['desc']).capitalize())} | 💨 {weather.get('wind', 0)} м/с\n\n"
+            f"🌡 {md_escape('Улица')}: {md_escape(weather['temp'])}°C | 💧 {md_escape(weather['hum'])}% | "
+            f"{md_escape(str(weather['desc']).capitalize())} | 💨 {md_escape(weather.get('wind', 0))} м/с\n\n"
         )
 
         msg += f"🤖 {md_escape(comment) if comment else md_escape('Погодные корректировки не требуются.')}\n"
 
         # calendar only on 1st
         if now.day == 1 and cal:
-            cur = next((x for x in cal if x.get("month") == month_idx), None)
+            cur = next((x for x in cal if x.get('month') == month_idx), None)
             if cur:
                 msg += f"\n📅 *{md_escape(cur.get('title','План месяца'))}*\n"
                 for r in cur.get("rules", [])[:3]:
@@ -327,7 +329,7 @@ def get_tasks():
                 msg += "┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n"
 
         if tasks_count > 0:
-            msg += f"\n✅ *{md_escape('Всего к поливу')}: {tasks_count}*"
+            msg += f"\n✅ *{md_escape('Всего к поливу')}: {md_escape(tasks_count)}*"
         else:
             msg += "\n🌿 *" + md_escape("Сегодня по расписанию только отдых!") + "*"
 
@@ -345,16 +347,34 @@ def send_to_telegram(text):
         return
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
+
+    # 1) Try MarkdownV2
+    payload_md = {
         "chat_id": chat_id,
         "text": text,
         "parse_mode": "MarkdownV2",
         "reply_markup": {"inline_keyboard": [[{"text": "✅ Сделано!", "callback_data": "done"}]]},
     }
+
     try:
-        requests.post(url, json=payload, timeout=12)
-    except Exception:
-        pass
+        r = requests.post(url, json=payload_md, timeout=12)
+        if r.status_code == 200:
+            return
+
+        print("Telegram error (MarkdownV2):", r.status_code, r.text)
+
+        # 2) Fallback to plain text
+        payload_plain = {
+            "chat_id": chat_id,
+            "text": text.replace("\\", ""),
+            "reply_markup": {"inline_keyboard": [[{"text": "✅ Сделано!", "callback_data": "done"}]]},
+        }
+        r2 = requests.post(url, json=payload_plain, timeout=12)
+        if r2.status_code != 200:
+            print("Telegram error (plain):", r2.status_code, r2.text)
+
+    except Exception as e:
+        print("Telegram request exception:", e)
 
 
 if __name__ == "__main__":

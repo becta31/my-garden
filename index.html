@@ -9,28 +9,17 @@
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#27ae60" />
   <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/192/potted-plant.png" />
-
-  <!-- 👇 важно для мобильных safe-area -->
-  <meta name="apple-mobile-web-app-capable" content="yes" />
 </head>
 
 <body>
   <div class="app-container">
 
-    <!-- НАВИГАЦИЯ -->
     <nav class="main-nav" aria-label="Навигация">
-      <button class="nav-btn active" id="btn-today" type="button" onclick="showView('today')">
-        📅 План
-      </button>
-      <button class="nav-btn" id="btn-collection" type="button" onclick="showView('collection')">
-        🪴 Сад
-      </button>
-      <button class="nav-btn" id="btn-year" type="button" onclick="showView('year')">
-        📊 Год
-      </button>
+      <button class="nav-btn active" id="btn-today" type="button" onclick="showView('today')">📅 План</button>
+      <button class="nav-btn" id="btn-collection" type="button" onclick="showView('collection')">🪴 Сад</button>
+      <button class="nav-btn" id="btn-year" type="button" onclick="showView('year')">📊 Год</button>
     </nav>
 
-    <!-- TODAY -->
     <section id="view-today" class="view-section" aria-label="План на сегодня">
       <div class="calendar-sheet">
 
@@ -46,8 +35,7 @@
 
         <div class="label">Задачи на сегодня:</div>
 
-        <!-- ✅ контейнер задач -->
-        <div id="todayTasks" class="tasks-list" aria-live="polite">
+        <div id="todayTasks" class="tasks-list" aria-live="polite" style="margin-top: 15px;">
           <div class="empty-state">
             <div class="empty-emoji">🌿</div>
             <div class="empty-title">Пока пусто</div>
@@ -58,12 +46,10 @@
       </div>
     </section>
 
-    <!-- COLLECTION -->
     <section id="view-collection" class="view-section" style="display:none;">
       <div id="collectionList" class="collection-grid"></div>
     </section>
 
-    <!-- YEAR -->
     <section id="view-year" class="view-section" style="display:none;">
       <div class="table-wrapper">
         <table>
@@ -83,12 +69,10 @@
 
   </div>
 
-  <!-- Скрипты -->
   <script defer src="data.js"></script>
   <script defer src="script.js"></script>
 
   <script>
-    // Service Worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
@@ -97,7 +81,6 @@
       });
     }
 
-    // старт
     document.addEventListener('DOMContentLoaded', () => {
       if (typeof updateCalendar === 'function') updateCalendar();
     });

@@ -1,78 +1,94 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>My Garden ERP</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#27ae60">
-    <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/192/potted-plant.png">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>My Garden ERP</title>
+
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#27ae60" />
+  <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/192/potted-plant.png" />
 </head>
+
 <body>
+  <div class="app-container">
 
-    <div class="app-container">
-        <nav class="main-nav">
-            <button class="nav-btn active" id="btn-today" onclick="showView('today')">📅 План</button>
-            <button class="nav-btn" id="btn-collection" onclick="showView('collection')">🪴 Сад</button>
-            <button class="nav-btn" id="btn-year" onclick="showView('year')">📊 Год</button>
-        </nav>
+    <nav class="main-nav" aria-label="Навигация">
+      <button class="nav-btn active" id="btn-today" type="button" onclick="showView('today')">📅 План</button>
+      <button class="nav-btn" id="btn-collection" type="button" onclick="showView('collection')">🪴 Сад</button>
+      <button class="nav-btn" id="btn-year" type="button" onclick="showView('year')">📊 Год</button>
+    </nav>
 
-        <section id="view-today" class="view-section">
-            <div class="calendar-sheet">
-                <div class="header-red">
-                    <span id="monthName">МЕСЯЦ</span>
-                    <span id="yearNum">2026</span>
-                </div>
-                <div class="day-number" id="dayNum">00</div>
-                <div class="day-name" id="dayName">День недели</div>
-                <div class="divider"></div>
-                <div class="label">Задачи на сегодня:</div>
-                <div id="todayTasks" style="margin-top: 15px;">
-                    </div>
-            </div>
-        </section>
+    <section id="view-today" class="view-section" aria-label="План на сегодня">
+      <div class="calendar-sheet">
 
-        <section id="view-collection" class="view-section" style="display: none;">
-            <div id="collectionList" class="collection-grid">
-                </div>
-        </section>
+        <div class="header-red">
+          <span id="monthName">МЕСЯЦ</span>
+          <span id="yearNum">2026</span>
+        </div>
 
-        <section id="view-year" class="view-section" style="display: none;">
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr id="tableHeader">
-                            </tr>
-                    </thead>
-                    <tbody id="tableBody">
-                        </tbody>
-                </table>
-            </div>
-            <div class="legend-mini">
-                <span>💊 Покормить</span>
-                <span>✂️ Обрезать</span>
-                <span>🪴 Пересадить</span>
-            </div>
-        </section>
-    </div>
+        <div class="day-number" id="dayNum">00</div>
+        <div class="day-name" id="dayName">День недели</div>
 
-    <script src="data.js"></script>
-    <script src="script.js"></script>
+        <div class="divider"></div>
 
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(reg => console.log('SW Registered'))
-                    .catch(err => console.log('SW Error:', err));
-            });
-        }
+        <div class="label">Задачи на сегодня:</div>
 
-        // Принудительный запуск первой вкладки при загрузке
-        window.onload = () => {
-            updateCalendar(); 
-        };
-    </script>
+        <!-- Контейнер задач -->
+        <div id="todayTasks" class="tasks-list" aria-live="polite" style="margin-top: 15px;">
+          <!-- пустой стейт (по умолчанию, пока скрипт не перерисовал) -->
+          <div class="empty-state">
+            <div class="empty-emoji">🌿</div>
+            <div class="empty-title">Пока пусто</div>
+            <div class="empty-text">Если сегодня нет полива — отдыхаем 🙂</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section id="view-collection" class="view-section" style="display:none;">
+      <div id="collectionList" class="collection-grid"></div>
+    </section>
+
+    <section id="view-year" class="view-section" style="display:none;">
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr id="tableHeader"></tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="legend-mini">
+        <span>💊 Покормить</span>
+        <span>✂️ Обрезать</span>
+        <span>🪴 Пересадить</span>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- data/script лучше грузить defer, чтобы DOM уже был -->
+  <script defer src="data.js"></script>
+  <script defer src="script.js"></script>
+
+  <script>
+    // Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(() => console.log('SW Registered'))
+          .catch(err => console.log('SW Error:', err));
+      });
+    }
+
+    // Один понятный старт
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof updateCalendar === 'function') updateCalendar();
+    });
+  </script>
 </body>
 </html>

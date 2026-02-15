@@ -65,7 +65,7 @@ self.addEventListener("fetch", (event) => {
       const cached = await caches.match(req);
       const fetchPromise = fetch(req)
         .then((fresh) => {
-          // кэшируем только свой домен и явные assets
+          // кэшируем только свой домен
           if (url.origin === location.origin) {
             caches.open(CACHE_NAME).then((cache) => cache.put(req, fresh.clone()));
           }

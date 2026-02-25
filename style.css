@@ -1,24 +1,16 @@
-/* style.css — FULL (clean, no duplicates, USSR calendar paper style for Today) */
-
 :root{
   --bg:#121212;
-
   --paper:#f2e7cf;
   --paper2:#efe1c3;
-
   --ink:#2b2b2b;
-  --muted:#6b6456;
-
   --red:#b1281f;
   --accent:#27ae60;
   --blue:#2980b9;
+  --muted:#6b6456;
 
-  /* compat (старые переменные, которые используются ниже) */
-  --card-bg: var(--paper);
-  --text: var(--ink);
+  --card-bg:#fdfbf7;
+  --text:#2c3e50;
 }
-
-* { box-sizing: border-box; }
 
 body{
   background:
@@ -31,79 +23,31 @@ body{
   justify-content: center;
 }
 
-.app-container{
-  width: 100%;
-  max-width: 500px;
-  padding: 15px;
-}
+.app-container { width: 100%; max-width: 500px; padding: 15px; }
 
-/* ---------- Навигация ---------- */
-.main-nav{
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  position: sticky;
-  top: 10px;
-  z-index: 100;
+/* Навигация */
+.main-nav { display: flex; gap: 8px; margin-bottom: 20px; position: sticky; top: 10px; z-index: 100; }
+.nav-btn {
+  flex: 1; padding: 12px 5px; border: none; border-radius: 10px;
+  background: #333; color: #888; font-weight: bold; cursor: pointer;
 }
+.nav-btn.active { background: var(--accent); color: white; }
 
-.nav-btn{
-  flex: 1;
-  padding: 12px 5px;
-  border: none;
-  border-radius: 10px;
-  background: #2f2f2f;
-  color: #bdbdbd;
-  font-weight: 800;
-  cursor: pointer;
-}
+/* Аналитика */
+.stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+.stat-card { padding: 15px; border-radius: 12px; text-align: center; background: linear-gradient(145deg, #2ecc71, #27ae60); box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+.stat-card.blue { background: linear-gradient(145deg, #3498db, #2980b9); }
+.stat-value { display: block; font-size: 24px; font-weight: bold; color: white; }
+.stat-label { font-size: 10px; color: rgba(255,255,255,0.8); text-transform: uppercase; }
 
-.nav-btn.active{
-  background: var(--accent);
-  color: white;
-}
-
-/* ---------- Аналитика (Сад) ---------- */
-.stats-container{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.stat-card{
-  padding: 15px;
-  border-radius: 12px;
-  text-align: center;
-  background: linear-gradient(145deg, #2ecc71, #27ae60);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.35);
-}
-
-.stat-card.blue{
-  background: linear-gradient(145deg, #3498db, #2980b9);
-}
-
-.stat-value{
-  display: block;
-  font-size: 24px;
-  font-weight: 900;
-  color: white;
-}
-
-.stat-label{
-  font-size: 10px;
-  color: rgba(255,255,255,0.85);
-  text-transform: uppercase;
-}
-
-/* ---------- Календарь (Today) — бумажный стиль ---------- */
+/* Карточка календаря */
 .calendar-sheet{
   position: relative;
   background: var(--paper);
   color: var(--ink);
   padding: 28px 18px 22px;
   border-radius: 14px;
-  text-align: center;
+  text-align:center;
 
   box-shadow:
     0 28px 65px rgba(0,0,0,0.70),
@@ -137,7 +81,7 @@ body{
   );
 }
 
-/* “дырочки” */
+/* дырочки */
 .calendar-sheet::after{
   content:"";
   position:absolute;
@@ -156,7 +100,7 @@ body{
   display:flex;
   justify-content:space-between;
   color: var(--red);
-  font-weight: 900;
+  font-weight: 800;
   border-bottom: 2px solid var(--red);
   padding-bottom: 6px;
   letter-spacing: 1px;
@@ -179,24 +123,31 @@ body{
   color: var(--muted);
 }
 
-.divider{
-  height: 1px;
-  background: rgba(0,0,0,0.20);
-  margin: 15px 0;
-}
+.divider { height: 1px; background: #ddd; margin: 15px 0; }
 
-.label{
-  font-weight: 800;
-  letter-spacing: 0.2px;
-  color: rgba(0,0,0,0.78);
-}
-
-/* ---------- Today tasks (USSR print style) ---------- */
+/* ===== Today tasks (print style) ===== */
 .tasks-list{
   display:flex;
   flex-direction:column;
   gap: 10px;
   margin-top: 10px;
+}
+
+.today-toolbar{
+  display:flex;
+  justify-content:flex-end;
+  margin-bottom: 6px;
+}
+
+.mini-btn{
+  appearance:none;
+  border: 1px solid rgba(0,0,0,0.25);
+  background: rgba(255,255,255,0.40);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 700;
+  color: rgba(0,0,0,0.78);
 }
 
 .task-card{
@@ -231,26 +182,27 @@ body{
   flex-wrap:wrap;
   gap: 10px;
   margin-top: 4px;
-  font-size: 14px;
 }
 
-/* вместо “пилюль” — печатные пометки */
-.chip{
-  background: transparent;
+/* кнопки действий */
+.chip-btn{
+  appearance:none;
   border: none;
+  background: transparent;
   padding: 0;
-  border-radius: 0;
+  font: inherit;
+  cursor: pointer;
   font-weight: 800;
+  color: rgba(0,0,0,0.78);
 }
 
-.chip::before{
+.chip-btn::before{
   content: "— ";
   opacity: 0.75;
 }
 
-.chip.secondary,
-.chip.warn{
-  background: transparent;
+.chip-btn.secondary{
+  color: rgba(0,0,0,0.74);
 }
 
 .task-note{
@@ -262,7 +214,24 @@ body{
   color: rgba(0,0,0,0.82);
 }
 
-/* empty state */
+.task-warn{
+  margin-top: 8px;
+  font-size: 13px;
+  color: rgba(0,0,0,0.72);
+}
+
+/* состояние "сделано" */
+.chip-btn.done{
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.done-card{
+  opacity: 0.80;
+  border-style: dashed;
+}
+
+/* empty */
 .empty-state{
   background: rgba(255,255,255,0.55);
   border: 1px dashed rgba(0,0,0,0.28);
@@ -271,136 +240,17 @@ body{
   text-align: center;
   color: rgba(0,0,0,0.72);
 }
-
 .empty-emoji{ font-size: 26px; }
 .empty-title{ font-weight: 900; margin-top: 6px; }
 .empty-text{ opacity: 0.8; margin-top: 4px; font-size: 13px; }
 
-/* ---------- Сад (Collection) ---------- */
-.collection-grid{
-  display: grid;
-  gap: 12px;
-}
-
-.plant-card{
-  background: var(--card-bg);
-  color: var(--text);
-  padding: 15px;
-  border-radius: 12px;
-  border-left: 6px solid var(--accent);
-  text-align: left;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.35);
-}
-
-.plant-card h3{
-  margin: 0 0 10px;
-  font-size: 16px;
-}
-
-.info-item{
-  margin: 6px 0;
-  font-size: 13px;
-  color: rgba(0,0,0,0.78);
-}
-
-.history-box{
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.55);
-  border: 1px solid rgba(0,0,0,0.10);
-  font-size: 12px;
-}
-
-.category-tag{
-  font-size: 9px;
-  background: rgba(0,0,0,0.08);
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin-left: 6px;
-  vertical-align: middle;
-}
-
-/* ---------- Год (Year table) ---------- */
-.table-wrapper{
-  overflow-x: auto;
-  background: var(--card-bg);
-  border-radius: 12px;
-  color: var(--text);
-  box-shadow: 0 10px 20px rgba(0,0,0,0.35);
-}
-
-table{
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 11px;
-}
-
-th, td{
-  padding: 8px 4px;
-  border: 1px solid rgba(0,0,0,0.08);
-  text-align: center;
-}
-
-th:first-child, td:first-child{
-  text-align: left;
-  position: sticky;
-  left: 0;
-  background: rgba(255,255,255,0.75);
-  font-weight: 900;
-  min-width: 120px;
-}
-
-.current-month-col{
-  border-left: 2px solid var(--red) !important;
-  border-right: 2px solid var(--red) !important;
-  background: rgba(177,40,31,0.04);
-}
-
-.cell-active{
-  background: rgba(39, 174, 96, 0.15);
-}
-
-.legend-mini{
-  margin-top: 10px;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  opacity: 0.85;
-}
-
-/* ---------- Старые классы (если где-то используются) ---------- */
-.task-item{
-  text-align: left;
-  margin-bottom: 12px;
-  padding: 10px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.60);
-  border-left: 4px solid var(--accent);
-}
-.task-main{
-  font-weight: 900;
-  color: var(--text);
-  font-size: 15px;
-}
-.task-sub{
-  color: #8a4b12;
-  font-size: 13px;
-  margin-top: 4px;
-  padding-left: 20px;
-  font-style: italic;
-}
-.plan-repot{
-  border-left-color: var(--accent);
-  background: rgba(39,174,96,0.10);
-}
-.plan-prune{
-  border-left-color: var(--blue);
-  background: rgba(52,152,219,0.10);
-}
-.no-tasks{
-  color: #7f8c8d;
-  font-style: italic;
-  margin-top: 20px;
-}
+/* Сетка Сада и Таблица */
+.collection-grid { display: grid; gap: 12px; }
+.plant-card { background: var(--card-bg); color: var(--text); padding: 15px; border-radius: 12px; border-left: 6px solid var(--accent); text-align: left;}
+.category-tag { font-size: 9px; background: #e0e0e0; padding: 2px 6px; border-radius: 4px; }
+.table-wrapper { overflow-x: auto; background: var(--card-bg); border-radius: 12px; color: var(--text); }
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th, td { padding: 8px 4px; border: 1px solid #eee; text-align: center; }
+th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: #f9f9f9; font-weight: bold; min-width: 100px; }
+.current-month-col { border-left: 2px solid var(--red) !important; border-right: 2px solid var(--red) !important; background: rgba(192, 57, 43, 0.03); }
+.cell-active { background: rgba(39, 174, 96, 0.15); }

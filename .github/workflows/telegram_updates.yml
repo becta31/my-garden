@@ -2,7 +2,10 @@ name: Telegram Updates Listener
 
 on:
   schedule:
+    # Часто — чтобы кнопки работали и не было "Bot didn't respond"
     - cron: "*/5 * * * *"
+    # Один раз в конце дня (23:55 MSK = 20:55 UTC) — коммитим/пушим
+    - cron: "55 20 * * *"
   workflow_dispatch:
 
 permissions:
@@ -23,12 +26,33 @@ jobs:
       - name: Install deps
         run: pip install requests
 
+      # ВАЖНО: между запусками сохраняем history/state, чтобы на частых запусках не пушить каждый раз
+      - name: Restore bot cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            history.json
+            telegram_state.json
+          key: garden-bot-cache
+          restore-keys: |
+            garden-bot-cache
+
       - name: Process Telegram updates
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: python process_updates.py
 
-      - name: Commit history changes
+      - name: Save bot cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            history.json
+            telegram_state.json
+          key: garden-bot-cache
+
+      # Коммитим ТОЛЬКО в конце дня (20:55 UTC)
+      - name: Commit history changes (end of day only)
+        if: github.event.schedule == '55 20 * * *'
         run: |
           git config user.name "garden-bot"
           git config user.email "garden-bot@users.noreply.github.com"

@@ -19,16 +19,18 @@ jobs:
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install requests google-genai openai
 
-      # ✅ Восстанавливаем last_weather.json между запусками
+      # ✅ Restore last_weather.json (не ломает job, если кэша ещё нет)
       - name: Restore weather cache
-        uses: actions/cache@v4
+        continue-on-error: true
+        uses: actions/cache/restore@v4
         with:
           path: last_weather.json
-          key: garden-weather-cache
+          key: garden-weather-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            garden-weather-cache
+            garden-weather-${{ runner.os }}-
 
       - name: Run reminder script
         env:
@@ -40,12 +42,14 @@ jobs:
           CITY_NAME: ${{ secrets.CITY_NAME }}
         run: python send_tasks.py
 
-      # ✅ Сохраняем last_weather.json (чтобы завтра была “дельта”)
+      # ✅ Save last_weather.json (кэш обновляется каждый запуск)
       - name: Save weather cache
-        uses: actions/cache@v4
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
         with:
           path: last_weather.json
-          key: garden-weather-cache
+          key: garden-weather-${{ runner.os }}-${{ github.run_id }}
 
       - name: Notify on Failure
         if: failure()

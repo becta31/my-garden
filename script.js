@@ -1,78 +1,38 @@
-// script.js (Today cards UI + history.json support + safe rendering)
-
-let historyIndex = {}; // { plantId: [ {date,event,note}... ] }
-
-/** Безопасно экранируем текст для HTML */
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-/** Читаем историю из history.json (и не даём SW/браузеру закэшировать) */
-async function loadHistory() {
+async function loadHistoryIntoPlants() {
   try {
-    const res = await fetch(`history.json?ts=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) throw new Error(`history.json HTTP ${res.status}`);
-    const data = await res.json();
+    const res = await fetch('./history.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const historyMap = await res.json();
 
-    const idx = {};
-    const entries = Array.isArray(data.entries) ? data.entries : [];
-
-    for (const e of entries) {
-      const id = e.id || e.plantId;
-      if (!id) continue;
-      if (!idx[id]) idx[id] = [];
-      idx[id].push({
-        date: e.date || "-",
-        event: e.event || "Запись",
-        note: e.note || ""
-      });
-    }
-
-    // сортировка по дате (если ISO), иначе как есть
-    for (const id of Object.keys(idx)) {
-      idx[id].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    }
-
-    historyIndex = idx;
-  } catch (err) {
-    console.log("History load failed:", err);
-    historyIndex = {};
+    plantsData.forEach(p => {
+      const extra = historyMap[p.id];
+      if (Array.isArray(extra) && extra.length) {
+        // объединяем: сначала то, что уже было в data.js, затем новое
+        const base = Array.isArray(p.history) ? p.history : [];
+        p.history = [...base, ...extra];
+      } else {
+        p.history = Array.isArray(p.history) ? p.history : [];
+      }
+    });
+  } catch (e) {
+    // ок — если history.json ещё нет или оффлайн
   }
 }
 
-/** Берём последнюю запись: сначала из history.json, иначе из data.js (p.history) */
-function getLastLog(p) {
-  const fromJson = historyIndex[p.id];
-  if (fromJson && fromJson.length) return fromJson[fromJson.length - 1];
-
-  const h = p.history;
-  if (Array.isArray(h) && h.length) return h[h.length - 1];
-
-  return null;
-}
-
 function showView(viewName) {
-  document.querySelectorAll(".view-section").forEach(v => (v.style.display = "none"));
-  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll('.view-section').forEach(v => v.style.display = 'none');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
-  const viewEl = document.getElementById("view-" + viewName);
-  const btnEl = document.getElementById("btn-" + viewName);
-  if (viewEl) viewEl.style.display = "block";
-  if (btnEl) btnEl.classList.add("active");
+  document.getElementById('view-' + viewName).style.display = 'block';
+  document.getElementById('btn-' + viewName).classList.add('active');
 
-  if (viewName === "collection") renderCollection();
-  if (viewName === "year") renderYearView();
-  if (viewName === "today") updateCalendar();
+  if (viewName === 'collection') renderCollection();
+  if (viewName === 'year') renderYearView();
+  if (viewName === 'today') updateCalendar();
 }
 
 function renderCollection() {
-  const list = document.getElementById("collectionList");
+  const list = document.getElementById('collectionList');
   if (!list) return;
 
   const d = new Date().getDate();
@@ -93,51 +53,43 @@ function renderCollection() {
   `;
 
   plantsData.forEach(p => {
-    const last = getLastLog(p);
-    const lastText = last
-      ? `${escapeHtml(last.date)} — ${escapeHtml(last.event)}${last.note ? ` (${escapeHtml(last.note)})` : ""}`
-      : `—`;
+    const hist = Array.isArray(p.history) ? p.history : [];
+    const lastLog = hist.length ? hist[hist.length - 1] : { date: "-", event: "Нет записей" };
 
     list.innerHTML += `
       <div class="plant-card">
-        <h3>${escapeHtml(p.name)} <span class="category-tag">${escapeHtml(p.category || "")}</span></h3>
-        <div class="info-item"><b>📍 Место:</b> ${escapeHtml(p.location || "Не указано")}</div>
-        <div class="info-item"><b>💧 Полив:</b> ${p.waterFreq === 1 ? "ежедневно" : "раз в " + escapeHtml(p.waterFreq) + " дн."}</div>
-        <div class="history-box"><b>Последнее:</b> ${lastText || "Нет записей"}</div>
+        <h3>${p.name} <span class="category-tag">${p.category}</span></h3>
+        <div class="info-item"><b>📍 Место:</b> ${p.location || 'Не указано'}</div>
+        <div class="info-item"><b>💧 Полив:</b> ${p.waterFreq === 1 ? 'ежедневно' : 'раз в ' + p.waterFreq + ' дн.'}</div>
+        <div class="history-box"><b>Последнее:</b> ${lastLog.date} — ${lastLog.event}</div>
       </div>
     `;
   });
 }
 
 function renderYearView() {
-  const monthsShort = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"];
+  const monthsShort = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
   const currentMonth = new Date().getMonth();
-  const header = document.getElementById("tableHeader");
-  const body = document.getElementById("tableBody");
-  if (!header || !body) return;
+  const header = document.getElementById('tableHeader');
+  const body = document.getElementById('tableBody');
 
   header.innerHTML =
-    "<th>Растение</th>" +
-    monthsShort
-      .map((m, i) => `<th class="${i === currentMonth ? "current-month-col" : ""}">${m}</th>`)
-      .join("");
+    '<th>Растение</th>' +
+    monthsShort.map((m, i) =>
+      `<th class="${i === currentMonth ? 'current-month-col' : ''}">${m}</th>`
+    ).join('');
 
   body.innerHTML = "";
 
   plantsData.forEach(p => {
-    let row = `<tr><td>${escapeHtml(p.name)}</td>`;
-
+    let row = `<tr><td>${p.name}</td>`;
     for (let m = 0; m < 12; m++) {
-      let icons = "";
-      let isActive = false;
-
+      let icons = ""; let isActive = false;
       if (p.feedMonths && p.feedMonths.includes(m)) { icons += "💊"; isActive = true; }
       if (p.pruneMonths && p.pruneMonths.includes(m)) { icons += "✂️"; isActive = true; }
       if (p.repotMonths && p.repotMonths.includes(m)) { icons += "🪴"; isActive = true; }
-
-      row += `<td class="${isActive ? "cell-active" : ""} ${m === currentMonth ? "current-month-col" : ""}">${icons}</td>`;
+      row += `<td class="${isActive ? 'cell-active' : ''} ${m === currentMonth ? 'current-month-col' : ''}">${icons}</td>`;
     }
-
     body.innerHTML += row + "</tr>";
   });
 }
@@ -148,20 +100,17 @@ function updateCalendar() {
   const m = now.getMonth();
 
   const months = [
-    "Январь","Февраль","Март","Апрель","Май","Июнь",
-    "Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"
+    'Январь','Февраль','Март','Апрель','Май','Июнь',
+    'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'
   ];
 
-  const monthName = document.getElementById("monthName");
-  const yearNum = document.getElementById("yearNum");
-  const dayNum = document.getElementById("dayNum");
-  const dayName = document.getElementById("dayName");
-  const container = document.getElementById("todayTasks");
+  document.getElementById('monthName').innerText = months[m];
+  document.getElementById('yearNum').innerText = now.getFullYear();
+  document.getElementById('dayNum').innerText = d;
+  document.getElementById('dayName').innerText =
+    ['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'][now.getDay()];
 
-  if (monthName) monthName.innerText = months[m];
-  if (yearNum) yearNum.innerText = now.getFullYear();
-  if (dayNum) dayNum.innerText = d;
-  if (dayName) dayName.innerText = ["Воскресенье","Понедельник","Вторник","Среда","Четверг","Пятница","Суббота"][now.getDay()];
+  const container = document.getElementById('todayTasks');
   if (!container) return;
 
   let html = "";
@@ -173,28 +122,24 @@ function updateCalendar() {
 
     hasTasks = true;
 
-    // Подкормка показывается только как "в этом месяце" (как у тебя было)
     const needFeed = p.feedMonths && p.feedMonths.includes(m);
-    const freqText = p.waterFreq === 1 ? "ежедневно" : `раз в ${p.waterFreq} дн.`;
-
-    const note = needFeed ? (p.feedShort || p.feedNote || "") : "";
-    const warn = p.warning || "";
+    const freqText = p.waterFreq === 1 ? 'ежедневно' : `раз в ${p.waterFreq} дн.`;
 
     html += `
       <div class="task-card">
         <div class="task-head">
-          <div class="task-plant">${escapeHtml(p.name)}</div>
-          <div class="task-meta">${escapeHtml(freqText)}</div>
+          <div class="task-plant">${p.name}</div>
+          <div class="task-meta">${freqText}</div>
         </div>
 
         <div class="task-actions">
           <span class="chip">💧 Полить</span>
           ${needFeed ? `<span class="chip secondary">🧪 Подкормить</span>` : ``}
-          ${warn ? `<span class="chip warn">⚠️ Важно</span>` : ``}
         </div>
 
-        ${note ? `<div class="task-note">💊 ${escapeHtml(note)}</div>` : ``}
-        ${warn ? `<div class="task-note">⚠️ ${escapeHtml(warn)}</div>` : ``}
+        ${needFeed && p.feedShort ? `
+          <div class="task-note">💊 ${p.feedShort}</div>
+        ` : ``}
       </div>
     `;
   });
@@ -210,9 +155,7 @@ function updateCalendar() {
     `;
 }
 
-/** Старт */
-document.addEventListener("DOMContentLoaded", async () => {
-  // грузим историю, затем обновляем UI
-  await loadHistory();
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadHistoryIntoPlants();
   updateCalendar();
 });

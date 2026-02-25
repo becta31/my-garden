@@ -1,0 +1,44 @@
+name: Telegram Updates Listener
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  process_updates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Process Telegram updates
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        run: python process_updates.py
+
+      - name: Commit history changes
+        run: |
+          git config user.name "garden-bot"
+          git config user.email "garden-bot@users.noreply.github.com"
+
+          git add history.json telegram_state.json || true
+
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+
+          git commit -m "Update history from Telegram"
+          git push

@@ -155,7 +155,7 @@ def send_to_telegram(text: str):
     payload = {
         "chat_id": chat_id,
         "text": text,
-        "parse_mode": "MarkdownV2"
+        # "parse_mode": "MarkdownV2",   ← закомментируй или удали
     }
 
     print("DEBUG: === ОТПРАВКА В TELEGRAM ===")

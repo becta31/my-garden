@@ -206,16 +206,18 @@ def main():
         
         month_idx = datetime.now().month - 1
         
-        # 🔧 ИСПРАВЛЕНО: дата экранируется через md_escape()
+        # 🔧 ИСПРАВЛЕНО: дата экранируется
         date_str = md_escape(datetime.now().strftime('%d.%m'))
         text_parts = [f"🌿 *ПЛАН САДА — {date_str}*\n"]
-        text_parts.append(f"🌡 {weather['temp']}°C | 💧 {weather['hum']}% | {md_escape(weather['desc'])}\n")
+        
+        # 🔧 ИСПРАВЛЕНО: | экранируем как \|
+        text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}% \\| {md_escape(weather['desc'])}\n")
         
         comment = weather_comment(weather, month_idx, delta_temp)
         if comment:
             text_parts.append(f"🤖 Совет: {md_escape(comment)}\n")
         
-        # 🔧 ИСПРАВЛЕНО: безопасный разделитель для MarkdownV2
+        # 🔧 ИСПРАВЛЕНО: безопасный разделитель
         text_parts.append("\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\n")
         
         print("DEBUG: Доходим до цикла for p in plants")
@@ -235,9 +237,10 @@ def main():
 
             line = f"📍 {md_escape(name)}\n"
             if needs_water:
-                line += f"💧 Полив + "
+                # 🔧 ИСПРАВЛЕНО: + экранируем как \+
+                line += f"💧 Полив \\+ "
             else:
-                line += f"💧 Полив (через {water_freq} дней) + "
+                line += f"💧 Полив (через {water_freq} дней) \\+ "
             line += f"{md_escape(feed_short)}\n"
             if stage_tip:
                 line += f"└ {md_escape(stage_tip)}\n"

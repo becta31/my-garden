@@ -1,4 +1,4 @@
-# send_tasks.py — ИСПРАВЛЕННАЯ ВЕРСИЯ (работает с любым форматом plants.json)
+# send_tasks.py — ИСПРАВЛЕННАЯ ВЕРСИЯ с защитой от list/dict (март 2026)
 import os
 import json
 import re
@@ -23,7 +23,7 @@ def md_escape(text) -> str:
         return ""
     s = str(text)
     s = s.replace("\\", "\\\\")
-    special = r"([_*[\]()~`>#+-=|{}.!])"
+    special = r"([_*[\\]()~`>#+-=|{}.!])"
     return re.sub(special, r"\\\1", s)
 
 
@@ -93,7 +93,6 @@ def get_weather():
     api_key = os.getenv("OPENWEATHER_API_KEY", "").strip()
     city = os.getenv("CITY_NAME", "Moscow").strip() or "Moscow"
     if not api_key:
-        logger.warning("Нет ключа OpenWeather")
         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
@@ -105,7 +104,7 @@ def get_weather():
             "wind": float(res.get("wind", {}).get("speed", 0)),
         }
     except Exception as e:
-        logger.error(f"Weather error: {e}")
+        print(f"Weather error: {e}")
         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
 
 
@@ -119,24 +118,7 @@ def weather_comment(weather, month_idx, delta_temp=None):
     if month_idx in (2, 3):
         if temp < 5:
             return "Холодно. Цитрусы и адениум — только тёплой водой."
-        return "Весна! Можно постепенно увеличивать полив."Run python send_tasks.py
-  python send_tasks.py
-  shell: /usr/bin/bash -e {0}
-  env:
-    pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
-    PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
-    Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
-    Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
-    Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
-    LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
-    TELEGRAM_TOKEN: ***
-    TELEGRAM_CHAT_ID: ***
-    OPENWEATHER_API_KEY: ***
-    HF_API_TOKEN: ***
-    GEMINI_API_KEY: ***
-    CITY_NAME: ***
-DEBUG: plants.json — объект, найдено 11 растений
-❌ Критическая ошибка: 'list' object has no attribute 'get'
+        return "Весна! Можно постепенно увеличивать полив."
     return None
 
 
@@ -164,7 +146,6 @@ def send_to_telegram(text: str):
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
         print("ERROR: Нет TELEGRAM_TOKEN или TELEGRAM_CHAT_ID")
-        logger.error("Нет секретов Telegram")
         return False
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -184,29 +165,24 @@ def send_to_telegram(text: str):
         print(f"DEBUG: Ответ Telegram: {response.text[:600]}")
         if response.status_code == 200:
             print("✅ Сообщение отправлено!")
-            logger.info("Сообщение отправлено")
             return True
         else:
             print("❌ Ошибка отправки")
-            logger.error(f"Telegram ошибка: {response.text}")
             return False
     except Exception as e:
         print(f"❌ Исключение при отправке: {e}")
-        logger.error(f"Исключение: {e}")
         return False
 
 
 def main():
     try:
         plants = load_plants()
-        
-        print(f"DEBUG: plants загружены, тип: {type(plants)}, длина: {len(plants) if plants else 'пусто'}")  # ← сюда
-        
+        print(f"DEBUG: После загрузки — тип plants: {type(plants)}, длина: {len(plants) if plants else 'пусто'}")
+
         if not plants:
             print("❌ Нет растений")
             return
-        
-        # дальше остальной код: history, weather и т.д.
+
         history = load_history()
         weather = get_weather()
         last_temp = load_last_temp()
@@ -245,7 +221,7 @@ def main():
 
         send_to_telegram(full_text)
 
-        print("Задача завершена")
+        print("Задача завершена успешно")
 
     except Exception as e:
         print(f"❌ Критическая ошибка: {e}")

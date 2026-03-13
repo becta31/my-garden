@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4          # обновлено
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5     # обновлено
         with:
           python-version: '3.12'
 
@@ -22,10 +22,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests google-genai openai
 
-      # ✅ Restore last_weather.json (не ломает job, если кэша ещё нет)
+      # Restore last_weather.json
       - name: Restore weather cache
         continue-on-error: true
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5    # обновлено до v5
         with:
           path: last_weather.json
           key: garden-weather-${{ runner.os }}-${{ github.run_id }}
@@ -42,11 +42,11 @@ jobs:
           CITY_NAME: ${{ secrets.CITY_NAME }}
         run: python send_tasks.py
 
-      # ✅ Save last_weather.json (кэш обновляется каждый запуск)
+      # Save last_weather.json
       - name: Save weather cache
         if: always()
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5       # обновлено до v5
         with:
           path: last_weather.json
           key: garden-weather-${{ runner.os }}-${{ github.run_id }}
@@ -56,4 +56,4 @@ jobs:
         run: |
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -d text="⚠️ ОШИБКА: Бот упал! Проверь логи в GitHub Actions."
+          -d text="Warning: ОШИБКА: Бот упал! Проверь логи в GitHub Actions."

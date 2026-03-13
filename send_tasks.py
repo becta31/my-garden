@@ -177,43 +177,43 @@ def send_to_telegram(text: str):
 def main():
     try:
         plants = load_plants()
-
-print(f"DEBUG: Загружено растений: {len(plants) if plants else 0}, тип: {type(plants)}")
-
-for i, p in enumerate(plants):
-    if isinstance(p, dict):
-        print(f"DEBUG: Растение {i+1}: dict с ключами {list(p.keys())}")
-    else:
-        print(f"DEBUG: Растение {i+1}: ЭТО НЕ СЛОВАРЬ!!! тип = {type(p)}")
-
-if not plants:
-    print("❌ Нет растений")
-    return
-
-# дальше остальной код...
-
+        
+        # отладка сразу после загрузки — всегда печатается
+        print(f"DEBUG: Загружено растений: {len(plants) if plants else 0}, тип: {type(plants)}")
+        
+        # дополнительная отладка каждого растения
+        for i, p in enumerate(plants):
+            if isinstance(p, dict):
+                print(f"DEBUG: Растение {i+1}: dict с ключами {list(p.keys())}")
+            else:
+                print(f"DEBUG: Растение {i+1}: ЭТО НЕ СЛОВАРЬ!!! тип = {type(p)}")
+        
+        if not plants:
+            print("❌ Нет растений")
+            return
+        
         history = load_history()
         weather = get_weather()
         last_temp = load_last_temp()
         delta_temp = weather["temp"] - last_temp if last_temp is not None else None
         save_last_temp(weather["temp"])
-
+        
         month_idx = datetime.now().month - 1
-
+        
         text_parts = [f"🌿 *ПЛАН САДА — {datetime.now().strftime('%d.%m')}*\n"]
         text_parts.append(f"🌡 {weather['temp']}°C | 💧 {weather['hum']}% | {md_escape(weather['desc'])}\n")
-
+        
         comment = weather_comment(weather, month_idx, delta_temp)
         if comment:
             text_parts.append(f"🤖 Совет: {md_escape(comment)}\n")
-
+        
         text_parts.append("⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n")
-
+        
         for p in plants:
             needs_water = days_since_last_watering(p["id"], history) >= p.get("waterFreq", 7)
             stage_tip = stage_hint(p.get("stage"))
             hint = semi_auto_hint(p, month_idx)
-
+            
             line = f"📍 {md_escape(p['name'])}\n"
             if needs_water:
                 line += f"💧 Полив + "
@@ -225,13 +225,13 @@ if not plants:
             if hint:
                 line += f"└ {md_escape(hint)}\n"
             text_parts.append(line)
-
+        
         full_text = "".join(text_parts)
-
+        
         send_to_telegram(full_text)
-
+        
         print("Задача завершена успешно")
-
+    
     except Exception as e:
         print(f"❌ Критическая ошибка: {e}")
         logger.error(f"Критическая ошибка: {e}")

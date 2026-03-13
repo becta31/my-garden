@@ -1,4 +1,4 @@
-# send_tasks.py — ИСПРАВЛЕННАЯ ЛОГИКА (март 2026)
+# send_tasks.py — ИСПРАВЛЕННАЯ ВЕРСИЯ (март 2026)
 import os
 import json
 import logging
@@ -68,9 +68,18 @@ def check_file_exists(filepath, description):
     return True
 
 def load_history():
+    """Загружает историю полива. Гарантированно возвращает СЛОВАРЬ."""
+    if not os.path.exists(HISTORY_FILE):
+        return {}
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            # ВАЖНО: Если в файле был список [], превращаем в словарь {}
+            if isinstance(data, list):
+                return {}
+            if isinstance(data, dict):
+                return data
+            return {}
     except:
         return {}
 
@@ -82,6 +91,7 @@ def save_history(history):
         logger.error(f"Ошибка сохранения history: {e}")
 
 def days_since_last_watering(plant_id: str, history: dict) -> int:
+    # Теперь history точно словарь
     entry = history.get(plant_id, {})
     last = entry.get("last_watered")
     if not last:
@@ -108,7 +118,10 @@ def load_plants():
 def load_last_temp():
     try:
         with open(LAST_WEATHER_FILE, "r", encoding="utf-8") as f:
-            return json.load(f).get("temp")
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data.get("temp")
+            return None
     except:
         return None
 
@@ -127,10 +140,14 @@ def get_weather():
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
         res = requests.get(url, timeout=10).json()
+        # Защита если API вернет ошибку (не словарь, а список или что-то странное)
+        if not isinstance(res, dict):
+             return {"temp": 0, "hum": 50, "desc": "ошибка API", "wind": 0}
+        
         return {
-            "temp": round(res["main"]["temp"]),
-            "hum": int(res["main"]["humidity"]),
-            "desc": res["weather"][0]["description"],
+            "temp": round(res.get("main", {}).get("temp", 0)),
+            "hum": int(res.get("main", {}).get("humidity", 0)),
+            "desc": res.get("weather", [{}])[0].get("description", "нет данных"),
             "wind": float(res.get("wind", {}).get("speed", 0)),
         }
     except Exception as e:
@@ -185,6 +202,10 @@ def main():
 
         # 3. Обработка растений
         for p in plants:
+            # Защита, если элемент в списке не словарь
+            if not isinstance(p, dict):
+                continue
+
             plant_id = p.get("id", p.get("name", "unknown"))
             water_freq = p.get("waterFreq", 7)
             name = p.get("name", "Без имени")
@@ -195,18 +216,17 @@ def main():
             days_passed = days_since_last_watering(plant_id, history)
             needs_water = days_passed >= water_freq
             
-            # Если полив не требуется — пропускаем растение (не выводим)
+            # Если полив не требуется — пропускаем растение
             if not needs_water:
                 continue
 
             action_found = True
             
-            # ЛОГИКА УДОБРЕНИЙ: Проверяем стадию
+            # ЛОГИКА УДОБРЕНИЙ
             feed_msg = ""
             extra_tip = ""
             
             if stage in ("dormant", "покой"):
-                # Если покой — удобрения игнорируем, даже если они есть в feedShort
                 feed_msg = "Только вода \\(режим покоя\\)"
                 extra_tip = "❄️ Не переливать\\!"
             elif stage in ("recover", "восстановление"):
@@ -215,10 +235,8 @@ def main():
                 feed_msg = md_escape(feed_short) if feed_short else "Подкормка для цветения"
                 extra_tip = "🌸 Режим цветения"
             else:
-                # Обычный режим (листва/рост) — выводим то, что в базе
                 feed_msg = md_escape(feed_short) if feed_short else "Просто полив"
 
-            # Формируем блок для растения
             line = f"📍 *{md_escape(name)}*\n"
             line += f"💧 {feed_msg}\n"
             if extra_tip:

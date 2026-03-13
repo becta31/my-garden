@@ -207,8 +207,8 @@ def main():
         if comment:
             text_parts.append(f"🤖 Совет: {md_escape(comment)}\n")
         
-        # Разделитель (обычные дефисы + реальный перенос \n)
-        text_parts.append("--------------\n")
+        # 🔧 ИСПРАВЛЕНО: экранированные дефисы + реальный перенос \n
+        text_parts.append("\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\n")
         
         for p in plants:
             plant_id = p.get("id", "без id")

@@ -206,19 +206,20 @@ def main():
         
         month_idx = datetime.now().month - 1
         
-        # 🔧 ИСПРАВЛЕНО: дата экранируется
-        date_str = md_escape(datetime.now().strftime('%d.%m'))
-        text_parts = [f"🌿 *ПЛАН САДА — {date_str}*\n"]
-        
-        # 🔧 ИСПРАВЛЕНО: | экранируем как \|
-        text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}% \\| {md_escape(weather['desc'])}\n")
-        
-        comment = weather_comment(weather, month_idx, delta_temp)
-        if comment:
-            text_parts.append(f"🤖 Совет: {md_escape(comment)}\n")
-        
-        # 🔧 ИСПРАВЛЕНО: безопасный разделитель
-        text_parts.append("\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\n")
+        # 🔧 Заголовок: экранируем только дату, звёздочки оставляем для жирного
+date_str = md_escape(datetime.now().strftime('%d.%m'))
+text_parts = [f"🌿 *ПЛАН САДА — {date_str}*\n"]
+
+# 🔧 Погода: | экранируем, но не трогаем форматирование
+text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}% \\| {md_escape(weather['desc'])}\n")
+
+comment = weather_comment(weather, month_idx, delta_temp)
+if comment:
+    text_parts.append(f"🤖 Совет: {md_escape(comment)}\n")
+
+# 🔧 Разделитель: обычный дефис + настоящий перенос строки (\n, а не \\n)
+text_parts.append("--------------\n")  # 14 дефисов + \n
+
         
         print("DEBUG: Доходим до цикла for p in plants")
 

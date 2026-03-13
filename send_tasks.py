@@ -23,9 +23,7 @@ def md_escape(text) -> str:
     if text is None:
         return ""
     s = str(text)
-    # 1. Сначала экранируем обратные слеши (важно!)
     s = s.replace("\\", "\\\\")
-    # 2. По очереди экранируем все 19 спецсимволов MarkdownV2
     for char in '_*[]()~`>#+-=|{}.!':
         s = s.replace(char, f'\\{char}')
     return s
@@ -63,7 +61,7 @@ def load_plants():
         with open("plants.json", "r", encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, list):
-                print("DEBUG: plants.json — чистый список, возвращаем как есть")
+                print("DEBUG: plants.json — чистый список")
                 return data
             elif isinstance(data, dict):
                 plants = data.get("plants", [])
@@ -152,7 +150,6 @@ def send_to_telegram(text: str):
         print("ERROR: Нет TELEGRAM_TOKEN или TELEGRAM_CHAT_ID")
         return False
 
-    # 🔧 ИСПРАВЛЕНО: убраны пробелы после "bot"
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -162,7 +159,6 @@ def send_to_telegram(text: str):
 
     print("DEBUG: === ОТПРАВКА В TELEGRAM ===")
     print(f"DEBUG: Длина текста: {len(text)}")
-    print(f"DEBUG: Первые 150 символов текста:\n{text[:150]}...")
 
     try:
         response = requests.post(url, json=payload, timeout=15)
@@ -186,13 +182,7 @@ def main():
     try:
         plants = load_plants()
         
-        print(f"DEBUG: Загружено растений: {len(plants) if plants else 0}, тип: {type(plants)}")
-        
-        for i, p in enumerate(plants):
-            if isinstance(p, dict):
-                print(f"DEBUG: Растение {i+1}: dict с ключами {list(p.keys())}")
-            else:
-                print(f"DEBUG: Растение {i+1}: ЭТО НЕ СЛОВАРЬ!!! тип = {type(p)}")
+        print(f"DEBUG: Загружено растений: {len(plants) if plants else 0}")
         
         if not plants:
             print("❌ Нет растений")
@@ -206,26 +196,21 @@ def main():
         
         month_idx = datetime.now().month - 1
         
-        # 🔧 Заголовок: экранируем только дату, звёздочки оставляем для жирного
-date_str = md_escape(datetime.now().strftime('%d.%m'))
-text_parts = [f"🌿 *ПЛАН САДА — {date_str}*\n"]
-
-# 🔧 Погода: | экранируем, но не трогаем форматирование
-text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}% \\| {md_escape(weather['desc'])}\n")
-
-comment = weather_comment(weather, month_idx, delta_temp)
-if comment:
-    text_parts.append(f"🤖 Совет: {md_escape(comment)}\n")
-
-# 🔧 Разделитель: обычный дефис + настоящий перенос строки (\n, а не \\n)
-text_parts.append("--------------\n")  # 14 дефисов + \n
-
+        # Заголовок с экранированной датой
+        date_str = md_escape(datetime.now().strftime('%d.%m'))
+        text_parts = [f"🌿 *ПЛАН САДА — {date_str}*\n"]
         
-        print("DEBUG: Доходим до цикла for p in plants")
-
+        # Погода с экранированными |
+        text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}% \\| {md_escape(weather['desc'])}\n")
+        
+        comment = weather_comment(weather, month_idx, delta_temp)
+        if comment:
+            text_parts.append(f"🤖 Совет: {md_escape(comment)}\n")
+        
+        # Разделитель (обычные дефисы + реальный перенос \n)
+        text_parts.append("--------------\n")
+        
         for p in plants:
-            print(f"DEBUG: Обрабатываем растение {p.get('name', 'без имени')}, тип p = {type(p)}")
-
             plant_id = p.get("id", "без id")
             water_freq = p.get("waterFreq", 7)
             name = p.get("name", "без имени")
@@ -238,8 +223,7 @@ text_parts.append("--------------\n")  # 14 дефисов + \n
 
             line = f"📍 {md_escape(name)}\n"
             if needs_water:
-                # 🔧 ИСПРАВЛЕНО: + экранируем как \+
-                line += f"💧 Полив \\+ "
+                line += "💧 Полив \\+ "
             else:
                 line += f"💧 Полив (через {water_freq} дней) \\+ "
             line += f"{md_escape(feed_short)}\n"

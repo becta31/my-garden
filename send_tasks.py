@@ -199,10 +199,14 @@ def send_to_telegram(text: str):
 def main():
     try:
         plants = load_plants()
+        
+        print(f"DEBUG: plants загружены, тип: {type(plants)}, длина: {len(plants) if plants else 'пусто'}")  # ← сюда
+        
         if not plants:
             print("❌ Нет растений")
             return
-
+        
+        # дальше остальной код: history, weather и т.д.
         history = load_history()
         weather = get_weather()
         last_temp = load_last_temp()

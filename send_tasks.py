@@ -58,20 +58,17 @@ def load_plants():
     try:
         with open("plants.json", "r", encoding="utf-8") as f:
             data = json.load(f)
-            # Защита от двух форматов
             if isinstance(data, list):
-                print("DEBUG: plants.json — это чистый список, ок")
+                print("DEBUG: plants.json — чистый список, возвращаем как есть")
                 return data
             elif isinstance(data, dict):
                 plants = data.get("plants", [])
                 print(f"DEBUG: plants.json — объект, найдено {len(plants)} растений")
                 return plants
             else:
-                logger.error("Неверный формат plants.json")
-                print("ERROR: Неверный формат plants.json")
+                print("ERROR: plants.json имеет неожиданный формат")
                 return []
     except Exception as e:
-        logger.error(f"plants.json не загружен: {e}")
         print(f"ERROR: plants.json не загружен — {e}")
         return []
 
@@ -122,7 +119,24 @@ def weather_comment(weather, month_idx, delta_temp=None):
     if month_idx in (2, 3):
         if temp < 5:
             return "Холодно. Цитрусы и адениум — только тёплой водой."
-        return "Весна! Можно постепенно увеличивать полив."
+        return "Весна! Можно постепенно увеличивать полив."Run python send_tasks.py
+  python send_tasks.py
+  shell: /usr/bin/bash -e {0}
+  env:
+    pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+    PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+    Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+    Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+    Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+    LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+    TELEGRAM_TOKEN: ***
+    TELEGRAM_CHAT_ID: ***
+    OPENWEATHER_API_KEY: ***
+    HF_API_TOKEN: ***
+    GEMINI_API_KEY: ***
+    CITY_NAME: ***
+DEBUG: plants.json — объект, найдено 11 растений
+❌ Критическая ошибка: 'list' object has no attribute 'get'
     return None
 
 

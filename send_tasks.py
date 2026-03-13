@@ -1,4 +1,4 @@
-# send_tasks.py — ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ (март 2026)
+# send_tasks.py — ИСПРАВЛЕННАЯ ВЕРСИЯ (работает с любым форматом plants.json)
 import os
 import json
 import re
@@ -19,12 +19,10 @@ HISTORY_FILE = "history.json"
 
 
 def md_escape(text) -> str:
-    """Полный экранирующий фильтр для MarkdownV2"""
     if text is None:
         return ""
     s = str(text)
-    s = s.replace("\\", "\\\\")  # сначала экранируем обратный слеш
-    # Все специальные символы MarkdownV2 по документации Telegram
+    s = s.replace("\\", "\\\\")
     special = r"([_*[\]()~`>#+-=|{}.!])"
     return re.sub(special, r"\\\1", s)
 
@@ -60,16 +58,21 @@ def load_plants():
     try:
         with open("plants.json", "r", encoding="utf-8") as f:
             data = json.load(f)
-            # Защита от двух форматов: {"plants": [...]} или просто [...]
+            # Защита от двух форматов
             if isinstance(data, list):
+                print("DEBUG: plants.json — это чистый список, ок")
                 return data
             elif isinstance(data, dict):
-                return data.get("plants", [])
+                plants = data.get("plants", [])
+                print(f"DEBUG: plants.json — объект, найдено {len(plants)} растений")
+                return plants
             else:
-                logger.error("plants.json имеет неожиданный формат")
+                logger.error("Неверный формат plants.json")
+                print("ERROR: Неверный формат plants.json")
                 return []
     except Exception as e:
         logger.error(f"plants.json не загружен: {e}")
+        print(f"ERROR: plants.json не загружен — {e}")
         return []
 
 
@@ -116,7 +119,7 @@ def weather_comment(weather, month_idx, delta_temp=None):
         return f"Резкое {'потепление' if delta_temp > 0 else 'похолодание'} (+{abs(delta_temp)}°). Не форсируй изменения ухода."
     if wind >= 12:
         return "Очень сильный ветер. Проветривай коротко..."
-    if month_idx in (2, 3):  # март-апрель
+    if month_idx in (2, 3):
         if temp < 5:
             return "Холодно. Цитрусы и адениум — только тёплой водой."
         return "Весна! Можно постепенно увеличивать полив."
@@ -139,51 +142,43 @@ def stage_hint(stage):
 
 
 def semi_auto_hint(p, month_idx):
-    return None  # можно расширить позже
+    return None
 
 
 def send_to_telegram(text: str):
     token = os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
-        logger.error("Нет TELEGRAM_TOKEN или TELEGRAM_CHAT_ID")
-        print("ERROR: Нет секретов Telegram")
+        print("ERROR: Нет TELEGRAM_TOKEN или TELEGRAM_CHAT_ID")
+        logger.error("Нет секретов Telegram")
         return False
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    keyboard = {
-        "inline_keyboard": [
-            [{"text": "✅ Сделано!", "callback_data": "mark_all_done"}]
-        ]
-    }
     payload = {
         "chat_id": chat_id,
         "text": text,
-        "parse_mode": "MarkdownV2",
-        "reply_markup": json.dumps(keyboard)
+        "parse_mode": "MarkdownV2"
     }
 
-    print("DEBUG: === ОТПРАВКА СООБЩЕНИЯ ===")
-    print(f"DEBUG: Длина текста: {len(text)} символов")
-    print(f"DEBUG: Первые 200 символов текста:\n{text[:200]}...")
-    print(f"DEBUG: CHAT_ID: {chat_id}")
-    print(f"DEBUG: TOKEN (первые 10): {token[:10]}...")
+    print("DEBUG: === ОТПРАВКА В TELEGRAM ===")
+    print(f"DEBUG: Длина текста: {len(text)}")
+    print(f"DEBUG: Первые 150 символов текста:\n{text[:150]}...")
 
     try:
         response = requests.post(url, json=payload, timeout=15)
         print(f"DEBUG: Status code: {response.status_code}")
-        print(f"DEBUG: Ответ Telegram: {response.text[:800]}")
+        print(f"DEBUG: Ответ Telegram: {response.text[:600]}")
         if response.status_code == 200:
-            logger.info("Сообщение успешно отправлено")
-            print("✅ Сообщение отправлено в Telegram!")
+            print("✅ Сообщение отправлено!")
+            logger.info("Сообщение отправлено")
             return True
         else:
+            print("❌ Ошибка отправки")
             logger.error(f"Telegram ошибка: {response.text}")
-            print("❌ Ошибка отправки!")
             return False
     except Exception as e:
-        logger.error(f"Исключение при отправке: {e}")
         print(f"❌ Исключение при отправке: {e}")
+        logger.error(f"Исключение: {e}")
         return False
 
 
@@ -191,8 +186,7 @@ def main():
     try:
         plants = load_plants()
         if not plants:
-            print("❌ Нет растений в plants.json")
-            logger.error("Нет растений")
+            print("❌ Нет растений")
             return
 
         history = load_history()
@@ -231,14 +225,13 @@ def main():
 
         full_text = "".join(text_parts)
 
-        # Отправляем
         send_to_telegram(full_text)
 
-        logger.info("Задача завершена")
+        print("Задача завершена")
 
     except Exception as e:
-        logger.error(f"Критическая ошибка в main: {e}")
         print(f"❌ Критическая ошибка: {e}")
+        logger.error(f"Критическая ошибка: {e}")
 
 
 if __name__ == "__main__":

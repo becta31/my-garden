@@ -19,15 +19,16 @@ HISTORY_FILE = "history.json"
 
 
 def md_escape(text) -> str:
-    """Минимальное экранирование только для MarkdownV2-разметки"""
+    """Экранирует спецсимволы для Telegram MarkdownV2"""
     if text is None:
         return ""
     s = str(text)
-    s = s.replace("\\", "\\\\")  # всегда экранируем \
-    # Только символы, которые Telegram требует экранировать в тексте
-    # Убраны ., /, - — они безопасны в обычном тексте
-    special = r"([_*[\]()~`>#+=|{}!])"
-    return re.sub(special, r"\\\1", s)
+    # 1. Сначала экранируем обратные слеши (важно!)
+    s = s.replace("\\", "\\\\")
+    # 2. По очереди экранируем все 19 спецсимволов MarkdownV2
+    for char in '_*[]()~`>#+-=|{}.!':
+        s = s.replace(char, f'\\{char}')
+    return s
 
 
 def load_history():

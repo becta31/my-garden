@@ -1,4 +1,4 @@
-# send_tasks.py — ИСПРАВЛЕННАЯ ВЕРСИЯ с защитой от list/dict (март 2026)
+# send_tasks.py — ФИНАЛЬНАЯ ВЕРСИЯ (март 2026)
 import os
 import json
 import re
@@ -152,6 +152,7 @@ def send_to_telegram(text: str):
         print("ERROR: Нет TELEGRAM_TOKEN или TELEGRAM_CHAT_ID")
         return False
 
+    # 🔧 ИСПРАВЛЕНО: убраны пробелы после "bot"
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -169,12 +170,15 @@ def send_to_telegram(text: str):
         print(f"DEBUG: Ответ Telegram: {response.text[:600]}")
         if response.status_code == 200:
             print("✅ Сообщение отправлено!")
+            logger.info("Сообщение отправлено в Telegram")
             return True
         else:
             print("❌ Ошибка отправки")
+            logger.error(f"Telegram ошибка: {response.text}")
             return False
     except Exception as e:
         print(f"❌ Исключение при отправке: {e}")
+        logger.error(f"Исключение: {e}")
         return False
 
 
@@ -182,10 +186,8 @@ def main():
     try:
         plants = load_plants()
         
-        # отладка сразу после загрузки — всегда печатается
         print(f"DEBUG: Загружено растений: {len(plants) if plants else 0}, тип: {type(plants)}")
         
-        # дополнительная отладка каждого растения
         for i, p in enumerate(plants):
             if isinstance(p, dict):
                 print(f"DEBUG: Растение {i+1}: dict с ключами {list(p.keys())}")
@@ -204,24 +206,25 @@ def main():
         
         month_idx = datetime.now().month - 1
         
-        text_parts = [f"🌿 *ПЛАН САДА — {datetime.now().strftime('%d.%m')}*\n"]
+        # 🔧 ИСПРАВЛЕНО: дата экранируется через md_escape()
+        date_str = md_escape(datetime.now().strftime('%d.%m'))
+        text_parts = [f"🌿 *ПЛАН САДА — {date_str}*\n"]
         text_parts.append(f"🌡 {weather['temp']}°C | 💧 {weather['hum']}% | {md_escape(weather['desc'])}\n")
         
         comment = weather_comment(weather, month_idx, delta_temp)
         if comment:
             text_parts.append(f"🤖 Совет: {md_escape(comment)}\n")
         
-        text_parts.append("⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n")
+        # 🔧 ИСПРАВЛЕНО: безопасный разделитель для MarkdownV2
+        text_parts.append("\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\n")
         
         print("DEBUG: Доходим до цикла for p in plants")
 
         for p in plants:
-            # Отладка: проверяем тип и имя каждого растения
             print(f"DEBUG: Обрабатываем растение {p.get('name', 'без имени')}, тип p = {type(p)}")
 
-            # Безопасное получение значений
             plant_id = p.get("id", "без id")
-            water_freq = p.get("waterFreq", 7)   # по умолчанию 7 дней
+            water_freq = p.get("waterFreq", 7)
             name = p.get("name", "без имени")
             feed_short = p.get("feedShort", "без подкормки")
             stage = p.get("stage")

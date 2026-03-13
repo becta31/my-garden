@@ -209,22 +209,26 @@ def main():
         
         text_parts.append("⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n")
         
+        print("DEBUG: Доходим до цикла for p in plants")
         for p in plants:
-            needs_water = days_since_last_watering(p["id"], history) >= p.get("waterFreq", 7)
-            stage_tip = stage_hint(p.get("stage"))
-            hint = semi_auto_hint(p, month_idx)
-            
-            line = f"📍 {md_escape(p['name'])}\n"
-            if needs_water:
-                line += f"💧 Полив + "
-            else:
-                line += f"💧 Полив (через {p.get('waterFreq', 7)} дней) + "
-            line += f"{md_escape(p.get('feedShort', 'без подкормки'))}\n"
-            if stage_tip:
-                line += f"└ {md_escape(stage_tip)}\n"
-            if hint:
-                line += f"└ {md_escape(hint)}\n"
-            text_parts.append(line)
+    # отладка перед использованием p
+    print(f"DEBUG: Обрабатываем растение {p.get('name', 'без имени')}, тип p = {type(p)}")
+
+    needs_water = days_since_last_watering(p["id"], history) >= p.get("waterFreq", 7)
+    stage_tip = stage_hint(p.get("stage"))
+    hint = semi_auto_hint(p, month_idx)
+
+    line = f"📍 {md_escape(p['name'])}\n"
+    if needs_water:
+        line += f"💧 Полив + "
+    else:
+        line += f"💧 Полив (через {p.get('waterFreq', 7)} дней) + "
+    line += f"{md_escape(p.get('feedShort', 'без подкормки'))}\n"
+    if stage_tip:
+        line += f"└ {md_escape(stage_tip)}\n"
+    if hint:
+        line += f"└ {md_escape(hint)}\n"
+    text_parts.append(line)
         
         full_text = "".join(text_parts)
         

@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4          # обновлено
+        uses: actions/checkout@v6          # обновлено
 
       - name: Set up Python
-        uses: actions/setup-python@v5     # обновлено
+        uses: actions/setup-python@v6     # обновлено
         with:
           python-version: '3.12'
 

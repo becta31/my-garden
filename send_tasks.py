@@ -19,14 +19,14 @@ HISTORY_FILE = "history.json"
 
 
 def md_escape(text) -> str:
-    """Экранирование для MarkdownV2 — все спецсимволы Telegram"""
+    """Минимальное экранирование только для MarkdownV2-разметки"""
     if text is None:
         return ""
     s = str(text)
-    # Сначала экранируем \, чтобы не сломать другие
-    s = s.replace("\\", "\\\\")
-    # Полный список: добавлена точка '.' и другие частые символы
-    special = r"([_*[\]()~`>#+-=|{}.!])"
+    s = s.replace("\\", "\\\\")  # всегда экранируем \
+    # Только символы, которые Telegram требует экранировать в тексте
+    # Убраны ., /, - — они безопасны в обычном тексте
+    special = r"([_*[\]()~`>#+=|{}!])"
     return re.sub(special, r"\\\1", s)
 
 
@@ -155,7 +155,7 @@ def send_to_telegram(text: str):
     payload = {
         "chat_id": chat_id,
         "text": text,
-        # "parse_mode": "MarkdownV2",   ← закомментируй или удали
+        "parse_mode": "MarkdownV2",   ← закомментируй или удали
     }
 
     print("DEBUG: === ОТПРАВКА В TELEGRAM ===")

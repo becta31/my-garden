@@ -177,11 +177,20 @@ def send_to_telegram(text: str):
 def main():
     try:
         plants = load_plants()
-        print(f"DEBUG: После загрузки — тип plants: {type(plants)}, длина: {len(plants) if plants else 'пусто'}")
 
-        if not plants:
-            print("❌ Нет растений")
-            return
+print(f"DEBUG: Загружено растений: {len(plants) if plants else 0}, тип: {type(plants)}")
+
+for i, p in enumerate(plants):
+    if isinstance(p, dict):
+        print(f"DEBUG: Растение {i+1}: dict с ключами {list(p.keys())}")
+    else:
+        print(f"DEBUG: Растение {i+1}: ЭТО НЕ СЛОВАРЬ!!! тип = {type(p)}")
+
+if not plants:
+    print("❌ Нет растений")
+    return
+
+# дальше остальной код...
 
         history = load_history()
         weather = get_weather()

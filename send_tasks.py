@@ -19,13 +19,14 @@ HISTORY_FILE = "history.json"
 
 
 def md_escape(text) -> str:
-    """Полный экранирующий фильтр для MarkdownV2 — все спецсимволы"""
+    """Полный экранирующий фильтр для MarkdownV2 — все спецсимволы Telegram"""
     if text is None:
         return ""
     s = str(text)
     # Сначала экранируем \, чтобы не сломать другие экраны
     s = s.replace("\\", "\\\\")
-    # Полный список специальных символов MarkdownV2 (по документации Telegram)
+    # Полный список специальных символов MarkdownV2
+    # Добавлена точка '.' — это то, что требует Telegram
     special = r"([_*[\]()~`>#+-=|{}.!])"
     return re.sub(special, r"\\\1", s)
 

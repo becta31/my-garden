@@ -1,4 +1,4 @@
-# send_tasks.py — ПОЛНАЯ ВЕРСИЯ 2026 (plants.json + умный полив + MarkdownV2 + кнопка)
+# send_tasks.py — ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ (март 2026)
 import os
 import json
 import re
@@ -16,20 +16,19 @@ logger = logging.getLogger(__name__)
 
 LAST_WEATHER_FILE = "last_weather.json"
 HISTORY_FILE = "history.json"
-TELEGRAM_STATE_FILE = "telegram_state.json"
 
 
 def md_escape(text) -> str:
-    """ПОЛНЫЙ escape для MarkdownV2 — всё экранируется (решает 400 Bad Request)"""
+    """Полный экранирующий фильтр для MarkdownV2"""
     if text is None:
         return ""
     s = str(text)
-    s = s.replace("\\", "\\\\")                    # сначала \
+    s = s.replace("\\", "\\\\")  # сначала экранируем обратный слеш
+    # Все специальные символы MarkdownV2 по документации Telegram
     special = r"([_*[\]()~`>#+-=|{}.!])"
     return re.sub(special, r"\\\1", s)
 
 
-# ====================== HISTORY & УМНЫЙ ПОЛИВ ======================
 def load_history():
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
@@ -37,12 +36,14 @@ def load_history():
     except:
         return {}
 
+
 def save_history(history):
     try:
         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.error(f"Ошибка сохранения history: {e}")
+
 
 def days_since_last_watering(plant_id: str, history: dict) -> int:
     entry = history.get(plant_id, {})
@@ -55,18 +56,23 @@ def days_since_last_watering(plant_id: str, history: dict) -> int:
         return 999
 
 
-# ====================== PLANTS.JSON ======================
 def load_plants():
     try:
         with open("plants.json", "r", encoding="utf-8") as f:
             data = json.load(f)
-            return data.get("plants", [])
+            # Защита от двух форматов: {"plants": [...]} или просто [...]
+            if isinstance(data, list):
+                return data
+            elif isinstance(data, dict):
+                return data.get("plants", [])
+            else:
+                logger.error("plants.json имеет неожиданный формат")
+                return []
     except Exception as e:
         logger.error(f"plants.json не загружен: {e}")
         return []
 
 
-# ====================== WEATHER ======================
 def load_last_temp():
     try:
         with open(LAST_WEATHER_FILE, "r", encoding="utf-8") as f:
@@ -74,12 +80,14 @@ def load_last_temp():
     except:
         return None
 
+
 def save_last_temp(temp):
     try:
         with open(LAST_WEATHER_FILE, "w", encoding="utf-8") as f:
             json.dump({"temp": temp, "saved_at": datetime.now().isoformat()}, f, ensure_ascii=False)
     except:
         pass
+
 
 def get_weather():
     api_key = os.getenv("OPENWEATHER_API_KEY", "").strip()
@@ -101,7 +109,6 @@ def get_weather():
         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
 
 
-# ====================== ТВОИ ОРИГИНАЛЬНЫЕ ФУНКЦИИ (полностью восстановлены) ======================
 def weather_comment(weather, month_idx, delta_temp=None):
     temp = weather.get("temp", 0)
     wind = weather.get("wind", 0)
@@ -109,7 +116,6 @@ def weather_comment(weather, month_idx, delta_temp=None):
         return f"Резкое {'потепление' if delta_temp > 0 else 'похолодание'} (+{abs(delta_temp)}°). Не форсируй изменения ухода."
     if wind >= 12:
         return "Очень сильный ветер. Проветривай коротко..."
-    # март 2026 — весна (пример)
     if month_idx in (2, 3):  # март-апрель
         if temp < 5:
             return "Холодно. Цитрусы и адениум — только тёплой водой."
@@ -133,11 +139,9 @@ def stage_hint(stage):
 
 
 def semi_auto_hint(p, month_idx):
-    # можно расширить позже
-    return None
+    return None  # можно расширить позже
 
 
-# ====================== ОТПРАВКА В TELEGRAM С КНОПКОЙ "✅ Сделано!" ======================
 def send_to_telegram(text: str):
     token = os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
@@ -159,29 +163,36 @@ def send_to_telegram(text: str):
         "reply_markup": json.dumps(keyboard)
     }
 
-    print("DEBUG: Отправка в Telegram...")
-    print(f"DEBUG: Длина текста: {len(text)}")
-    response = requests.post(url, json=payload, timeout=15)
+    print("DEBUG: === ОТПРАВКА СООБЩЕНИЯ ===")
+    print(f"DEBUG: Длина текста: {len(text)} символов")
+    print(f"DEBUG: Первые 200 символов текста:\n{text[:200]}...")
+    print(f"DEBUG: CHAT_ID: {chat_id}")
+    print(f"DEBUG: TOKEN (первые 10): {token[:10]}...")
 
-    print(f"DEBUG: Status code = {response.status_code}")
-    print(f"DEBUG: Ответ Telegram: {response.text[:600]}")
-
-    if response.status_code == 200:
-        logger.info("Сообщение успешно отправлено в Telegram")
-        print("✅ Сообщение отправлено!")
-        return True
-    else:
-        logger.error(f"Ошибка Telegram: {response.text}")
-        print("❌ Ошибка отправки!")
+    try:
+        response = requests.post(url, json=payload, timeout=15)
+        print(f"DEBUG: Status code: {response.status_code}")
+        print(f"DEBUG: Ответ Telegram: {response.text[:800]}")
+        if response.status_code == 200:
+            logger.info("Сообщение успешно отправлено")
+            print("✅ Сообщение отправлено в Telegram!")
+            return True
+        else:
+            logger.error(f"Telegram ошибка: {response.text}")
+            print("❌ Ошибка отправки!")
+            return False
+    except Exception as e:
+        logger.error(f"Исключение при отправке: {e}")
+        print(f"❌ Исключение при отправке: {e}")
         return False
 
 
-# ====================== ГЛАВНЫЙ ЦИКЛ ======================
 def main():
     try:
         plants = load_plants()
         if not plants:
             print("❌ Нет растений в plants.json")
+            logger.error("Нет растений")
             return
 
         history = load_history()
@@ -220,10 +231,10 @@ def main():
 
         full_text = "".join(text_parts)
 
-        # === ОТПРАВКА ===
+        # Отправляем
         send_to_telegram(full_text)
 
-        logger.info("Задача выполнена успешно")
+        logger.info("Задача завершена")
 
     except Exception as e:
         logger.error(f"Критическая ошибка в main: {e}")

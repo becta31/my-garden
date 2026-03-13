@@ -1,4 +1,4 @@
-# send_tasks.py — ИСПРАВЛЕННАЯ ВЕРСИЯ (март 2026)
+# send_tasks.py — ВЕРСИЯ С ПАМЯТЬЮ (март 2026)
 import os
 import json
 import logging
@@ -21,7 +21,6 @@ PLANTS_FILE = "plants.json"
 # --- Вспомогательные функции ---
 
 def md_escape(text) -> str:
-    """Экранирует спецсимволы для Telegram MarkdownV2"""
     if text is None:
         return ""
     s = str(text)
@@ -34,7 +33,7 @@ def send_to_telegram(text: str):
     token = os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
-        print("ERROR: Нет TELEGRAM_TOKEN или TELEGRAM_CHAT_ID")
+        print("ERROR: Нет токена или ID")
         return False
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -48,38 +47,30 @@ def send_to_telegram(text: str):
         response = requests.post(url, json=payload, timeout=15)
         if response.status_code == 200:
             print("✅ Сообщение отправлено!")
-            logger.info("Сообщение отправлено в Telegram")
             return True
         else:
-            print(f"❌ Ошибка Telegram: {response.text[:200]}")
-            logger.error(f"Telegram error: {response.text}")
+            print(f"❌ Ошибка: {response.text[:200]}")
             return False
     except Exception as e:
-        print(f"❌ Исключение при отправке: {e}")
-        logger.error(f"Exception: {e}")
+        print(f"❌ Исключение: {e}")
         return False
 
 def check_file_exists(filepath, description):
-    """Проверяет наличие файла. Если нет — шлет ошибку в Telegram и завершает скрипт."""
     if not os.path.exists(filepath):
-        error_msg = f"⚠️ *Ошибка конфигурации*\nФайл `{filepath}` \\({md_escape(description)}\\) не найден\\."
+        error_msg = f"⚠️ *Ошибка*\nФайл `{filepath}` не найден\\."
         send_to_telegram(error_msg)
         sys.exit(1)
     return True
 
 def load_history():
-    """Загружает историю полива. Гарантированно возвращает СЛОВАРЬ."""
     if not os.path.exists(HISTORY_FILE):
         return {}
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            # ВАЖНО: Если в файле был список [], превращаем в словарь {}
             if isinstance(data, list):
                 return {}
-            if isinstance(data, dict):
-                return data
-            return {}
+            return data if isinstance(data, dict) else {}
     except:
         return {}
 
@@ -91,7 +82,6 @@ def save_history(history):
         logger.error(f"Ошибка сохранения history: {e}")
 
 def days_since_last_watering(plant_id: str, history: dict) -> int:
-    # Теперь history точно словарь
     entry = history.get(plant_id, {})
     last = entry.get("last_watered")
     if not last:
@@ -109,8 +99,7 @@ def load_plants():
                 return data
             elif isinstance(data, dict):
                 return data.get("plants", [])
-            else:
-                return []
+            return []
     except Exception as e:
         print(f"ERROR: plants.json не загружен — {e}")
         return []
@@ -119,9 +108,7 @@ def load_last_temp():
     try:
         with open(LAST_WEATHER_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if isinstance(data, dict):
-                return data.get("temp")
-            return None
+            return data.get("temp") if isinstance(data, dict) else None
     except:
         return None
 
@@ -140,7 +127,6 @@ def get_weather():
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
         res = requests.get(url, timeout=10).json()
-        # Защита если API вернет ошибку (не словарь, а список или что-то странное)
         if not isinstance(res, dict):
              return {"temp": 0, "hum": 50, "desc": "ошибка API", "wind": 0}
         
@@ -160,23 +146,21 @@ def weather_comment(weather, month_idx, delta_temp=None):
     if delta_temp is not None and abs(delta_temp) >= 8:
         return f"Резкое {'потепление' if delta_temp > 0 else 'похолодание'} (+{abs(delta_temp)}°)."
     if wind >= 12:
-        return "Очень сильный ветер."
+        return "Сильный ветер."
     if month_idx in (2, 3):
         if temp < 5:
             return "Холодно. Поливай только тёплой водой."
-        return "Весна! Можно постепенно увеличивать полив."
+        return "Весна! Увеличивай полив."
     return None
 
 # --- Основная логика ---
 
 def main():
     try:
-        # 1. Проверка файлов
-        check_file_exists(PLANTS_FILE, "База данных растений")
+        check_file_exists(PLANTS_FILE, "База данных")
         
         plants = load_plants()
         if not plants:
-            print("❌ Список растений пуст")
             return
         
         history = load_history()
@@ -186,11 +170,11 @@ def main():
         save_last_temp(weather["temp"])
         
         month_idx = datetime.now().month - 1
+        today_str = datetime.now().strftime('%d.%m')
         
-        # 2. Формирование заголовка
-        date_str = md_escape(datetime.now().strftime('%d.%m'))
-        text_parts = [f"🌿 *ПЛАН САДА — {date_str}*\n"]
-        text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}% \\| {md_escape(weather['desc'])}\n")
+        # Заголовок
+        text_parts = [f"🌿 *ПЛАН САДА — {md_escape(today_str)}*\n"]
+        text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}%\n")
         
         comment = weather_comment(weather, month_idx, delta_temp)
         if comment:
@@ -198,13 +182,11 @@ def main():
         
         text_parts.append("\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\n")
         
-        action_found = False
+        plants_to_water_today = []
 
-        # 3. Обработка растений
+        # Анализ растений
         for p in plants:
-            # Защита, если элемент в списке не словарь
-            if not isinstance(p, dict):
-                continue
+            if not isinstance(p, dict): continue
 
             plant_id = p.get("id", p.get("name", "unknown"))
             water_freq = p.get("waterFreq", 7)
@@ -212,46 +194,53 @@ def main():
             feed_short = p.get("feedShort", "")
             stage = str(p.get("stage", "")).strip().lower()
 
-            # ПРОВЕРКА: Нужно ли поливать сегодня?
+            # Логика: нужно ли поливать?
             days_passed = days_since_last_watering(plant_id, history)
             needs_water = days_passed >= water_freq
             
-            # Если полив не требуется — пропускаем растение
             if not needs_water:
                 continue
 
-            action_found = True
+            # Если нужно поливать — добавляем в список
+            plants_to_water_today.append(plant_id)
             
-            # ЛОГИКА УДОБРЕНИЙ
-            feed_msg = ""
-            extra_tip = ""
-            
-            if stage in ("dormant", "покой"):
-                feed_msg = "Только вода \\(режим покоя\\)"
-                extra_tip = "❄️ Не переливать\\!"
-            elif stage in ("recover", "восстановление"):
-                feed_msg = "Без подкормок \\(восстановление\\)"
-            elif stage in ("bloom", "цветение"):
-                feed_msg = md_escape(feed_short) if feed_short else "Подкормка для цветения"
-                extra_tip = "🌸 Режим цветения"
-            else:
-                feed_msg = md_escape(feed_short) if feed_short else "Просто полив"
-
+            # Формируем блок
             line = f"📍 *{md_escape(name)}*\n"
-            line += f"💧 {feed_msg}\n"
-            if extra_tip:
-                line += f"└ _{extra_tip}_\n"
             
-            text_parts.append(line)
+            # 1. Действие (Полив)
+            line += "💧 *Полив*\n"
+            
+            # 2. Удобрения (логика стадий)
+            if stage in ("dormant", "покой"):
+                line += "❄️ Режим покоя: *только вода*\n"
+            elif stage in ("recover", "восстановление"):
+                line += "🚑 Восстановление: без удобрений\n"
+            else:
+                # Если есть текст удобрений — выводим как справку
+                if feed_short:
+                    # Сокращаем длинные тексты для красоты (опционально)
+                    feed_display = feed_short
+                    line += f"🧪 _{md_escape(feed_display)}_\n"
+            
+            text_parts.append(line + "\n")
         
-        # 4. Итог
-        if not action_found:
-            text_parts.append("✅ Сегодня полив никому не требуется\\. Отдыхаем\\!")
+        # Итог
+        if not plants_to_water_today:
+            text_parts.append("✅ Полив никому не требуется\\. Отдыхаем\\!")
         
         full_text = "".join(text_parts)
         send_to_telegram(full_text)
         
-        print("Задача завершена успешно")
+        # ВАЖНО: Сохраняем историю (сбрасываем счетчик для политых растений)
+        # Это делается ПОСЛЕ отправки, чтобы счетчик обновился
+        now_iso = datetime.now().isoformat()
+        for pid in plants_to_water_today:
+            if pid not in history:
+                history[pid] = {}
+            history[pid]["last_watered"] = now_iso
+        
+        save_history(history)
+        print(f"Обновлена история для {len(plants_to_water_today)} растений.")
     
     except Exception as e:
         print(f"❌ Критическая ошибка: {e}")

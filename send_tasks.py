@@ -1,4 +1,4 @@
-# send_tasks.py — ВЕРСИЯ С ПАМЯТЬЮ (март 2026)
+# send_tasks.py — ФИНАЛЬНАЯ ВЕРСИЯ (авто-учет при отправке)
 import os
 import json
 import logging
@@ -63,15 +63,33 @@ def check_file_exists(filepath, description):
     return True
 
 def load_history():
+    """Загружает историю. Исправляет конфликт форматов (list vs dict)."""
     if not os.path.exists(HISTORY_FILE):
         return {}
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if isinstance(data, list):
+            
+            # Если файл пуст
+            if not data:
                 return {}
-            return data if isinstance(data, dict) else {}
-    except:
+                
+            # Если это словарь (правильный формат)
+            if isinstance(data, dict):
+                return data
+            
+            # Если это список (старый/ошибочный формат от process_updates)
+            # Конвертируем его в словарь, чтобы бот не падал
+            if isinstance(data, list):
+                fixed_history = {}
+                for item in data:
+                    if isinstance(item, dict) and "plant_id" in item and "ts" in item:
+                        fixed_history[item["plant_id"]] = {"last_watered": item["ts"]}
+                return fixed_history
+                
+            return {}
+    except Exception as e:
+        print(f"Warning: Ошибка чтения history: {e}")
         return {}
 
 def save_history(history):
@@ -201,26 +219,19 @@ def main():
             if not needs_water:
                 continue
 
-            # Если нужно поливать — добавляем в список
             plants_to_water_today.append(plant_id)
             
             # Формируем блок
             line = f"📍 *{md_escape(name)}*\n"
-            
-            # 1. Действие (Полив)
             line += "💧 *Полив*\n"
             
-            # 2. Удобрения (логика стадий)
             if stage in ("dormant", "покой"):
                 line += "❄️ Режим покоя: *только вода*\n"
             elif stage in ("recover", "восстановление"):
                 line += "🚑 Восстановление: без удобрений\n"
             else:
-                # Если есть текст удобрений — выводим как справку
                 if feed_short:
-                    # Сокращаем длинные тексты для красоты (опционально)
-                    feed_display = feed_short
-                    line += f"🧪 _{md_escape(feed_display)}_\n"
+                    line += f"🧪 _{md_escape(feed_short)}_\n"
             
             text_parts.append(line + "\n")
         
@@ -229,18 +240,21 @@ def main():
             text_parts.append("✅ Полив никому не требуется\\. Отдыхаем\\!")
         
         full_text = "".join(text_parts)
-        send_to_telegram(full_text)
         
-        # ВАЖНО: Сохраняем историю (сбрасываем счетчик для политых растений)
-        # Это делается ПОСЛЕ отправки, чтобы счетчик обновился
-        now_iso = datetime.now().isoformat()
-        for pid in plants_to_water_today:
-            if pid not in history:
-                history[pid] = {}
-            history[pid]["last_watered"] = now_iso
-        
-        save_history(history)
-        print(f"Обновлена история для {len(plants_to_water_today)} растений.")
+        # 1. ОТПРАВКА
+        if send_to_telegram(full_text):
+            # 2. УЧЕТ (Логика: сообщение ушло = задание выполнено)
+            # Сохраняем текущее время для всех растений из списка
+            now_iso = datetime.now().isoformat()
+            for pid in plants_to_water_today:
+                if pid not in history:
+                    history[pid] = {}
+                history[pid]["last_watered"] = now_iso
+            
+            save_history(history)
+            print(f"✅ Учтено: обновлена история для {len(plants_to_water_today)} растений.")
+        else:
+            print("❌ Сообщение не отправлено, история НЕ обновлена (попробуем в следующий раз).")
     
     except Exception as e:
         print(f"❌ Критическая ошибка: {e}")

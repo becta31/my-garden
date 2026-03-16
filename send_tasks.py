@@ -1,4 +1,4 @@
-# send_tasks.py — ФИНАЛЬНАЯ ВЕРСИЯ (авто-учет при отправке)
+# send_tasks.py — ВЕРСИЯ С ИИ-СОВЕТАМИ (март 2026)
 import os
 import json
 import logging
@@ -63,30 +63,19 @@ def check_file_exists(filepath, description):
     return True
 
 def load_history():
-    """Загружает историю. Исправляет конфликт форматов (list vs dict)."""
     if not os.path.exists(HISTORY_FILE):
         return {}
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            
-            # Если файл пуст
-            if not data:
-                return {}
-                
-            # Если это словарь (правильный формат)
-            if isinstance(data, dict):
-                return data
-            
-            # Если это список (старый/ошибочный формат от process_updates)
-            # Конвертируем его в словарь, чтобы бот не падал
+            if not data: return {}
+            if isinstance(data, dict): return data
             if isinstance(data, list):
                 fixed_history = {}
                 for item in data:
-                    if isinstance(item, dict) and "plant_id" in item and "ts" in item:
-                        fixed_history[item["plant_id"]] = {"last_watered": item["ts"]}
+                    if isinstance(item, dict) and "plant_id" in item:
+                        fixed_history[item["plant_id"]] = {"last_watered": item.get("ts")}
                 return fixed_history
-                
             return {}
     except Exception as e:
         print(f"Warning: Ошибка чтения history: {e}")
@@ -113,10 +102,8 @@ def load_plants():
     try:
         with open(PLANTS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if isinstance(data, list):
-                return data
-            elif isinstance(data, dict):
-                return data.get("plants", [])
+            if isinstance(data, list): return data
+            elif isinstance(data, dict): return data.get("plants", [])
             return []
     except Exception as e:
         print(f"ERROR: plants.json не загружен — {e}")
@@ -158,7 +145,55 @@ def get_weather():
         print(f"Weather error: {e}")
         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
 
-def weather_comment(weather, month_idx, delta_temp=None):
+# --- ИИ Советы (Google Gemini) ---
+
+def get_ai_advice(weather, plant_names, month_idx):
+    """
+    Запрашивает совет у Google Gemini 1.5 Flash.
+    Если API не настроен или ошибка — возвращает None.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None
+
+    # Формируем контекст
+    season = ["Зима", "Весна", "Лето", "Осень"][month_idx // 3] # Примерная прикидка
+    
+    prompt = f"""
+    Ты — опытный, но лаконичный агроном-любитель.
+    Погода сейчас: {weather['temp']}°C, влажность {weather['hum']}%.
+    Сезон: {season}.
+    Сегодня на поливе: {', '.join(plant_names) if plant_names else 'никого'}.
+    
+    Дай один короткий, неочевидный совет по уходу за этими растениями в данных условиях.
+    Не пиши очевидные вещи (типа "поливай теплой водой"). 
+    Пиши конкретно и полезно. Не более 200 символов.
+    """
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 100,
+        }
+    }
+
+    try:
+        resp = requests.post(url, json=payload, timeout=20)
+        if resp.status_code == 200:
+            data = resp.json()
+            # Парсинг ответа Gemini
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text")
+            if text:
+                return text.strip().replace('*', '') # Убираем звездочки, чтобы не ломать Markdown
+    except Exception as e:
+        print(f"AI Advice error: {e}")
+    
+    return None
+
+def weather_comment_fallback(weather, month_idx, delta_temp=None):
+    """Старый генератор советов, если ИИ недоступен"""
     temp = weather.get("temp", 0)
     wind = weather.get("wind", 0)
     if delta_temp is not None and abs(delta_temp) >= 8:
@@ -194,15 +229,10 @@ def main():
         text_parts = [f"🌿 *ПЛАН САДА — {md_escape(today_str)}*\n"]
         text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}%\n")
         
-        comment = weather_comment(weather, month_idx, delta_temp)
-        if comment:
-            text_parts.append(f"🤖 _{md_escape(comment)}_\n")
-        
-        text_parts.append("\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\n")
-        
-        plants_to_water_today = []
-
         # Анализ растений
+        plants_to_water_today = []
+        plants_to_water_names = []
+
         for p in plants:
             if not isinstance(p, dict): continue
 
@@ -212,7 +242,6 @@ def main():
             feed_short = p.get("feedShort", "")
             stage = str(p.get("stage", "")).strip().lower()
 
-            # Логика: нужно ли поливать?
             days_passed = days_since_last_watering(plant_id, history)
             needs_water = days_passed >= water_freq
             
@@ -220,8 +249,8 @@ def main():
                 continue
 
             plants_to_water_today.append(plant_id)
+            plants_to_water_names.append(name)
             
-            # Формируем блок
             line = f"📍 *{md_escape(name)}*\n"
             line += "💧 *Полив*\n"
             
@@ -235,16 +264,28 @@ def main():
             
             text_parts.append(line + "\n")
         
+        # --- Логика комментариев ---
+        # Пробуем получить совет от ИИ
+        ai_tip = None
+        if plants_to_water_today:
+            ai_tip = get_ai_advice(weather, plants_to_water_names, month_idx)
+        
+        if ai_tip:
+            # Если ИИ дал совет
+            text_parts.insert(2, f"🧠 _{md_escape(ai_tip)}_\n")
+        else:
+            # Иначе используем старую логику (вставляем после погоды)
+            comment = weather_comment_fallback(weather, month_idx, delta_temp)
+            if comment:
+                text_parts.insert(2, f"🤖 _{md_escape(comment)}_\n")
+
         # Итог
         if not plants_to_water_today:
             text_parts.append("✅ Полив никому не требуется\\. Отдыхаем\\!")
         
         full_text = "".join(text_parts)
         
-        # 1. ОТПРАВКА
         if send_to_telegram(full_text):
-            # 2. УЧЕТ (Логика: сообщение ушло = задание выполнено)
-            # Сохраняем текущее время для всех растений из списка
             now_iso = datetime.now().isoformat()
             for pid in plants_to_water_today:
                 if pid not in history:
@@ -254,7 +295,7 @@ def main():
             save_history(history)
             print(f"✅ Учтено: обновлена история для {len(plants_to_water_today)} растений.")
         else:
-            print("❌ Сообщение не отправлено, история НЕ обновлена (попробуем в следующий раз).")
+            print("❌ Сообщение не отправлено.")
     
     except Exception as e:
         print(f"❌ Критическая ошибка: {e}")

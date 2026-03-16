@@ -9,12 +9,14 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
+    # Явно разрешаем этому джобу делать записи в репозиторий
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
-        persist-credentials: false # Важно для коммитов от бота
+      # Убрали persist-credentials: false, чтобы авторизация работала
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -29,32 +31,24 @@ jobs:
     - name: Run Garden Bot
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        TELEGRAM_CHAT_ID: {{ secrets.TELEGRAM_CHAT_ID }}
         OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
         CITY_NAME: ${{ secrets.CITY_NAME }}
       run: python send_tasks.py
 
-    # --- НОВЫЕ ШАГИ ДЛЯ СОХРАНЕНИЯ ПАМЯТИ ---
+    # --- ШАГИ ДЛЯ СОХРАНЕНИЯ ИСТОРИИ ---
     
-    - name: Check for changes
-      id: check_changes
+    - name: Commit and push changes
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add history.json last_weather.json
-        # Проверяем, есть ли что коммитить
-        if git diff --staged --quiet; then
-          echo "has_changes=false" >> $GITHUB_OUTPUT
+        # Проверяем, есть ли изменения
+        if ! git diff --staged --quiet; then
+          git commit -m "Update history and weather data [skip ci]"
+          git push
         else
-          echo "has_changes=true" >> $GITHUB_OUTPUT
+          echo "No changes to commit"
         fi
-
-    - name: Commit and push changes
-      if: steps.check_changes.outputs.has_changes == 'true'
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git commit -m "Update history and weather data [skip ci]" -a
-        git push

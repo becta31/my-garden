@@ -9,14 +9,13 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
-    # Явно разрешаем этому джобу делать записи в репозиторий
+    # Разрешаем запись в репозиторий
     permissions:
       contents: write
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      # Убрали persist-credentials: false, чтобы авторизация работала
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -31,21 +30,18 @@ jobs:
     - name: Run Garden Bot
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        TELEGRAM_CHAT_ID: {{ secrets.TELEGRAM_CHAT_ID }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
         CITY_NAME: ${{ secrets.CITY_NAME }}
       run: python send_tasks.py
 
-    # --- ШАГИ ДЛЯ СОХРАНЕНИЯ ИСТОРИИ ---
-    
     - name: Commit and push changes
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add history.json last_weather.json
-        # Проверяем, есть ли изменения
         if ! git diff --staged --quiet; then
           git commit -m "Update history and weather data [skip ci]"
           git push

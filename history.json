@@ -1,23 +1,32 @@
-[
-  {
-    "ts": "2026-02-25T02:18:52",
-    "plant_id": "pomegranate-mini",
-    "plant_name": "Гранат комнатный",
-    "action": "done",
-    "source": "гранат сделано"
+{
+  "pomegranate-mini": {
+    "last_watered": "2026-03-17T07:03:47.869944"
   },
-  {
-    "ts": "2026-02-25T02:18:52",
-    "plant_id": "adenium-young",
-    "plant_name": "Адениум (Молодой)",
-    "action": "done",
-    "source": "адениум сделано"
+  "adenium-young": {
+    "last_watered": "2026-03-17T07:03:47.869944"
   },
-  {
-    "ts": "2026-02-25T02:18:52",
-    "plant_id": "pomegranate-mini",
-    "plant_name": "Гранат комнатный",
-    "action": "done",
-    "source": "гранат сделано"
+  "citrus-group": {
+    "last_watered": "2026-03-17T07:03:47.869944"
+  },
+  "cactus-seeds": {
+    "last_watered": "2026-03-17T07:03:47.869944"
+  },
+  "violets": {
+    "last_watered": "2026-03-17T07:03:47.869944"
+  },
+  "orchid-ok": {
+    "last_watered": "2026-03-17T07:03:47.869944"
+  },
+  "gloxinia": {
+    "last_watered": "2026-03-17T07:03:47.869944"
+  },
+  "zamioculcas": {
+    "last_watered": "2026-03-17T07:03:47.869944"
+  },
+  "nolina": {
+    "last_watered": "2026-03-17T07:03:47.869944"
+  },
+  "aloe": {
+    "last_watered": "2026-03-17T07:03:47.869944"
   }
-]
+}

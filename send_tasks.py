@@ -1,4 +1,4 @@
-# send_tasks.py — ВЕРСИЯ С ИИ-СОВЕТАМИ (март 2026)
+# send_tasks.py — ВЕРСИЯ С ДИАГНОСТИКОЙ
 import os
 import json
 import logging
@@ -63,14 +63,25 @@ def check_file_exists(filepath, description):
     return True
 
 def load_history():
+    print(f"--- DIAG: Попытка загрузить {HISTORY_FILE} ---")
     if not os.path.exists(HISTORY_FILE):
+        print(f"--- DIAG: Файл {HISTORY_FILE} НЕ СУЩЕСТВУЕТ! Возвращаю пустой словарь.")
         return {}
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if not data: return {}
-            if isinstance(data, dict): return data
+            print(f"--- DIAG: Файл прочитан. Тип данных: {type(data)}")
+            
+            if not data: 
+                print("--- DIAG: Файл пуст.")
+                return {}
+            
+            if isinstance(data, dict):
+                print(f"--- DIAG: Найден словарь. Ключи: {list(data.keys())}")
+                return data
+            
             if isinstance(data, list):
+                print("--- DIAG: Найден список. Конвертирую...")
                 fixed_history = {}
                 for item in data:
                     if isinstance(item, dict) and "plant_id" in item:
@@ -78,15 +89,17 @@ def load_history():
                 return fixed_history
             return {}
     except Exception as e:
-        print(f"Warning: Ошибка чтения history: {e}")
+        print(f"--- DIAG: ОШИБКА чтения JSON: {e}")
         return {}
 
 def save_history(history):
     try:
         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=2)
+        print("--- DIAG: История успешно сохранена на диск.")
     except Exception as e:
         logger.error(f"Ошибка сохранения history: {e}")
+        print(f"--- DIAG: Ошибка при сохранении: {e}")
 
 def days_since_last_watering(plant_id: str, history: dict) -> int:
     entry = history.get(plant_id, {})
@@ -94,8 +107,13 @@ def days_since_last_watering(plant_id: str, history: dict) -> int:
     if not last:
         return 999
     try:
-        return (datetime.now() - datetime.fromisoformat(last)).days
-    except:
+        # Используем UTC дату, так как GitHub Actions работает в UTC
+        now = datetime.now()
+        last_dt = datetime.fromisoformat(last)
+        diff = (now - last_dt).days
+        return diff
+    except Exception as e:
+        print(f"--- DIAG: Ошибка расчета дней для {plant_id}: {e}")
         return 999
 
 def load_plants():
@@ -145,20 +163,11 @@ def get_weather():
         print(f"Weather error: {e}")
         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
 
-# --- ИИ Советы (Google Gemini) ---
-
 def get_ai_advice(weather, plant_names, month_idx):
-    """
-    Запрашивает совет у Google Gemini 1.5 Flash.
-    Если API не настроен или ошибка — возвращает None.
-    """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return None
-
-    # Формируем контекст
-    season = ["Зима", "Весна", "Лето", "Осень"][month_idx // 3] # Примерная прикидка
-    
+    season = ["Зима", "Весна", "Лето", "Осень"][month_idx // 3]
     prompt = f"""
     Ты — опытный, но лаконичный агроном-любитель.
     Погода сейчас: {weather['temp']}°C, влажность {weather['hum']}%.
@@ -169,31 +178,23 @@ def get_ai_advice(weather, plant_names, month_idx):
     Не пиши очевидные вещи (типа "поливай теплой водой"). 
     Пиши конкретно и полезно. Не более 200 символов.
     """
-
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.7,
-            "maxOutputTokens": 100,
-        }
+        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 100}
     }
-
     try:
         resp = requests.post(url, json=payload, timeout=20)
         if resp.status_code == 200:
             data = resp.json()
-            # Парсинг ответа Gemini
             text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text")
             if text:
-                return text.strip().replace('*', '') # Убираем звездочки, чтобы не ломать Markdown
+                return text.strip().replace('*', '')
     except Exception as e:
         print(f"AI Advice error: {e}")
-    
     return None
 
 def weather_comment_fallback(weather, month_idx, delta_temp=None):
-    """Старый генератор советов, если ИИ недоступен"""
     temp = weather.get("temp", 0)
     wind = weather.get("wind", 0)
     if delta_temp is not None and abs(delta_temp) >= 8:
@@ -225,31 +226,42 @@ def main():
         month_idx = datetime.now().month - 1
         today_str = datetime.now().strftime('%d.%m')
         
-        # Заголовок
         text_parts = [f"🌿 *ПЛАН САДА — {md_escape(today_str)}*\n"]
         text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}%\n")
         
-        # Анализ растений
         plants_to_water_today = []
         plants_to_water_names = []
 
+        print(f"--- DIAG: Начинаю перебор {len(plants)} растений ---")
+        
         for p in plants:
             if not isinstance(p, dict): continue
 
             plant_id = p.get("id", p.get("name", "unknown"))
             water_freq = p.get("waterFreq", 7)
             name = p.get("name", "Без имени")
-            feed_short = p.get("feedShort", "")
-            stage = str(p.get("stage", "")).strip().lower()
-
+            
             days_passed = days_since_last_watering(plant_id, history)
             needs_water = days_passed >= water_freq
+            
+            # ДИАГНОСТИКА ДЛЯ ПЕРВОГО РАСТЕНИЯ (Лимоны)
+            if plant_id == "citrus-group":
+                print(f"--- DIAG CHECK: {name} ---")
+                print(f"    ID: {plant_id}")
+                print(f"    Last Watered (from file): {history.get(plant_id, {}).get('last_watered', 'НЕТ ДАТЫ')}")
+                print(f"    Days Passed: {days_passed}")
+                print(f"    Freq: {water_freq}")
+                print(f"    Needs Water? {needs_water}")
+                print(f"    Decision: {'ПОЛИВАТЬ' if needs_water else 'ПРОПУСТИТЬ'}")
             
             if not needs_water:
                 continue
 
             plants_to_water_today.append(plant_id)
             plants_to_water_names.append(name)
+            
+            feed_short = p.get("feedShort", "")
+            stage = str(p.get("stage", "")).strip().lower()
             
             line = f"📍 *{md_escape(name)}*\n"
             line += "💧 *Полив*\n"
@@ -264,22 +276,18 @@ def main():
             
             text_parts.append(line + "\n")
         
-        # --- Логика комментариев ---
-        # Пробуем получить совет от ИИ
+        # Логика советов
         ai_tip = None
         if plants_to_water_today:
             ai_tip = get_ai_advice(weather, plants_to_water_names, month_idx)
         
         if ai_tip:
-            # Если ИИ дал совет
             text_parts.insert(2, f"🧠 _{md_escape(ai_tip)}_\n")
         else:
-            # Иначе используем старую логику (вставляем после погоды)
             comment = weather_comment_fallback(weather, month_idx, delta_temp)
             if comment:
                 text_parts.insert(2, f"🤖 _{md_escape(comment)}_\n")
 
-        # Итог
         if not plants_to_water_today:
             text_parts.append("✅ Полив никому не требуется\\. Отдыхаем\\!")
         

@@ -13,7 +13,9 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4 # ИСПРАВЛЕНО: было v6
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Добавьте эту строчку!
 
     - name: Set up Python
       uses: actions/setup-python@v5 # ИСПРАВЛЕНО: было v6

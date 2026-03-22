@@ -11,8 +11,6 @@ LAST_WEATHER_FILE = "last_weather.json"
 HISTORY_FILE = "history.json"
 PLANTS_FILE = "plants.json"
 
-# --- Вспомогательные функции ---
-
 def md_escape(text) -> str:
     if text is None:
         return ""
@@ -22,7 +20,6 @@ def md_escape(text) -> str:
         s = s.replace(char, f'\\{char}')
     return s
 
-
 def send_to_telegram(text: str):
     token = os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
@@ -30,11 +27,7 @@ def send_to_telegram(text: str):
         print("ERROR: Нет токена или ID чата")
         return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "MarkdownV2"
-    }
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "MarkdownV2"}
     try:
         response = requests.post(url, json=payload, timeout=15)
         if response.status_code == 200:
@@ -47,13 +40,10 @@ def send_to_telegram(text: str):
         print(f"❌ Исключение при отправке: {e}")
         return False
 
-
 def check_file_exists(filepath):
     if not os.path.exists(filepath):
-        error_msg = f"⚠️ *Ошибка*\nФайл `{filepath}` не найден\\."
-        send_to_telegram(error_msg)
+        send_to_telegram(f"⚠️ *Ошибка*\nФайл `{filepath}` не найден\\.")
         sys.exit(1)
-
 
 def load_history():
     if not os.path.exists(HISTORY_FILE):
@@ -65,7 +55,6 @@ def load_history():
             return {}
         if isinstance(data, dict):
             return data
-        # Конвертация старого формата (список) в словарь
         if isinstance(data, list):
             fixed = {}
             for item in data:
@@ -77,14 +66,12 @@ def load_history():
         print(f"Ошибка чтения history.json: {e}")
         return {}
 
-
 def save_history(history):
     try:
         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"Ошибка сохранения history.json: {e}")
-
 
 def days_since_last_watering(plant_id: str, history: dict) -> int:
     entry = history.get(plant_id, {})
@@ -94,14 +81,12 @@ def days_since_last_watering(plant_id: str, history: dict) -> int:
     try:
         now = datetime.now(timezone.utc)
         last_dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
-        # Если строка без timezone — считаем её UTC
         if last_dt.tzinfo is None:
             last_dt = last_dt.replace(tzinfo=timezone.utc)
         return (now - last_dt).days
     except Exception as e:
         print(f"Ошибка расчёта дней для {plant_id}: {e}")
         return 999
-
 
 def load_plants():
     try:
@@ -119,7 +104,6 @@ def load_plants():
         print(f"ERROR: plants.json не загружен — {e}")
         return []
 
-
 def load_last_temp():
     try:
         with open(LAST_WEATHER_FILE, "r", encoding="utf-8") as f:
@@ -128,17 +112,12 @@ def load_last_temp():
     except Exception:
         return None
 
-
 def save_last_temp(temp):
     try:
         with open(LAST_WEATHER_FILE, "w", encoding="utf-8") as f:
-            json.dump(
-                {"temp": temp, "saved_at": datetime.now(timezone.utc).isoformat()},
-                f, ensure_ascii=False
-            )
+            json.dump({"temp": temp, "saved_at": datetime.now(timezone.utc).isoformat()}, f, ensure_ascii=False)
     except Exception:
         pass
-
 
 def get_weather():
     api_key = os.getenv("OPENWEATHER_API_KEY", "").strip()
@@ -146,10 +125,7 @@ def get_weather():
     if not api_key:
         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
     try:
-        url = (
-            f"http://api.openweathermap.org/data/2.5/weather"
-            f"?q={city}&appid={api_key}&units=metric&lang=ru"
-        )
+        url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
         res = requests.get(url, timeout=10).json()
         if not isinstance(res, dict):
             return {"temp": 0, "hum": 50, "desc": "ошибка API", "wind": 0}
@@ -163,16 +139,13 @@ def get_weather():
         print(f"Ошибка погоды: {e}")
         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
 
-
 def get_season(month: int) -> str:
-    """Возвращает сезон по номеру месяца (1–12)."""
     return {
-        12: "Зима", 1: "Зима",  2: "Зима",
-         3: "Весна", 4: "Весна", 5: "Весна",
-         6: "Лето",  7: "Лето",  8: "Лето",
-         9: "Осень", 10: "Осень", 11: "Осень",
+        12: "Зима", 1: "Зима", 2: "Зима",
+        3: "Весна", 4: "Весна", 5: "Весна",
+        6: "Лето", 7: "Лето", 8: "Лето",
+        9: "Осень", 10: "Осень", 11: "Осень",
     }[month]
-
 
 def get_ai_advice(weather, plant_names, month):
     api_key = os.getenv("GEMINI_API_KEY")
@@ -185,13 +158,9 @@ def get_ai_advice(weather, plant_names, month):
         f"Сезон: {season}.\n"
         f"Сегодня на поливе: {', '.join(plant_names) if plant_names else 'никого'}.\n"
         f"Дай один короткий, неочевидный совет по уходу за этими растениями в данных условиях. "
-        f"Не пиши банальные вещи (типа 'поливай тёплой водой'). "
-        f"Пиши конкретно и полезно. Не более 200 символов."
+        f"Не пиши банальные вещи. Пиши конкретно и полезно. Не более 200 символов."
     )
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.0-flash:generateContent?key={api_key}"
-    )
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + api_key
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.7, "maxOutputTokens": 100}
@@ -200,18 +169,12 @@ def get_ai_advice(weather, plant_names, month):
         resp = requests.post(url, json=payload, timeout=20)
         if resp.status_code == 200:
             data = resp.json()
-            text = (
-                data.get("candidates", [{}])[0]
-                    .get("content", {})
-                    .get("parts", [{}])[0]
-                    .get("text")
-            )
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text")
             if text:
                 return text.strip().replace('*', '')
     except Exception as e:
         print(f"Ошибка Gemini: {e}")
     return None
-
 
 def weather_comment_fallback(weather, month, delta_temp=None):
     temp = weather.get("temp", 0)
@@ -227,12 +190,8 @@ def weather_comment_fallback(weather, month, delta_temp=None):
         return "Весна! Постепенно увеличивай полив."
     return None
 
-
-# --- Основная логика ---
-
 def main():
     check_file_exists(PLANTS_FILE)
-
     plants = load_plants()
     if not plants:
         print("ERROR: Список растений пуст.")
@@ -261,8 +220,7 @@ def main():
         water_freq = p.get("waterFreq", 7)
         name = p.get("name", "Без имени")
 
-        days_passed = days_since_last_watering(plant_id, history)
-        if days_passed < water_freq:
+        if days_since_last_watering(plant_id, history) < water_freq:
             continue
 
         plants_to_water.append(plant_id)
@@ -271,9 +229,7 @@ def main():
         feed_short = p.get("feedShort", "")
         stage = str(p.get("stage", "")).strip().lower()
 
-        line = f"📍 *{md_escape(name)}*\n"
-        line += "💧 *Полив*\n"
-
+        line = f"📍 *{md_escape(name)}*\n💧 *Полив*\n"
         if stage in ("dormant", "покой"):
             line += "❄️ Режим покоя: *только вода*\n"
         elif stage in ("recover", "восстановление"):
@@ -281,10 +237,8 @@ def main():
         else:
             if feed_short:
                 line += f"🧪 _{md_escape(feed_short)}_\n"
-
         text_parts.append(line + "\n")
 
-    # Совет от ИИ или fallback
     if plants_to_water:
         tip = get_ai_advice(weather, plants_to_water_names, month)
         if tip:
@@ -296,9 +250,7 @@ def main():
     else:
         text_parts.append("✅ Полив никому не требуется\\. Отдыхаем\\!")
 
-    full_text = "".join(text_parts)
-
-    # История сохраняется независимо от результата отправки в Telegram
+    # История сохраняется ДО отправки — не теряется при сбое Telegram
     now_iso = now_utc.isoformat()
     for pid in plants_to_water:
         if pid not in history:
@@ -306,11 +258,10 @@ def main():
         history[pid]["last_watered"] = now_iso
     save_history(history)
 
-    if send_to_telegram(full_text):
+    if send_to_telegram("".join(text_parts)):
         print(f"✅ Готово. Обновлено растений: {len(plants_to_water)}.")
     else:
         print("❌ Сообщение не отправлено, но история уже сохранена.")
-
 
 if __name__ == "__main__":
     main()

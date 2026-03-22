@@ -1,65 +1,96 @@
-# 🌿 Smart Garden Bot (AI-Powered)
+# 🌿 Smart Garden Bot
 
-![Python](https://img.shields.io/badge/python-3.12-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![GitHub Actions](https://img.shields.io/badge/backend-GitHub%20Actions-black.svg)
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub Actions](https://img.shields.io/badge/backend-GitHub%20Actions-black.svg)](https://github.com/features/actions)
 
-**Умная система уведомлений для домашнего сада с ИИ-советами и памятью.**
-
-Бот не просто напоминает о поливе, но и анализирует погоду, ведёт статистику и даёт персональные рекомендации от **Google Gemini**. Работает полностью бесплатно через GitHub Actions — собственный сервер не нужен.
+Умный Telegram-бот для домашнего сада. Напоминает о поливе, учитывает погоду и даёт советы от **Google Gemini**. Работает бесплатно через GitHub Actions — сервер не нужен.
 
 ---
 
-## ✨ Основные возможности
+## ✨ Возможности
 
-* 🧠 **Интеллектуальная память:** Бот фиксирует выполнение задач. После уведомления растение исчезает из списка до наступления следующего срока.
-* 🤖 **ИИ-эксперт:** Интеграция с **Google Gemini** для генерации советов по уходу в зависимости от текущей погоды и сезона.
-* 🌡 **Учет метеоусловий:** Синхронизация с **OpenWeatherMap**. Бот анализирует температуру и влажность.
-* 📅 **Умный график:** Автоматический расчет интервалов полива на основе `plants.json`.
-* 🚀 **Zero Cost:** Автоматизация через GitHub Actions. Вам не нужно держать включенным компьютер или арендовать VPS.
-* 📱 **Telegram Interface:** Удобное управление через мессенджер с кнопками подтверждения.
+- 🧠 **Память** — бот запоминает дату последнего полива и не беспокоит раньше времени
+- 🤖 **ИИ-советы** — Google Gemini даёт рекомендации с учётом погоды и сезона
+- 🌡 **Погода** — данные с OpenWeatherMap, учёт температуры и влажности
+- 📅 **Гибкий график** — индивидуальная частота полива для каждого растения
+- 🚀 **Бесплатно** — запускается по cron через GitHub Actions, без VPS и постоянно включённого компьютера
 
 ---
 
-## 📂 Структура проекта
+## 📂 Структура
 
 | Файл | Описание |
-| :--- | :--- |
-| `send_tasks.py` | **Ядро:** проверка погоды, расчет дат, запросы к ИИ и отправка уведомлений. |
-| `process_updates.py` | Обработчик обратной связи (кнопок) из Telegram. |
-| `plants.json` | **База растений:** частота полива (`waterFreq`) и стадия роста (`stage`). |
-| `history.json` | **Файл памяти:** хранит даты последних поливов. |
-| `last_weather.json` | Кэш для отслеживания изменений температуры. |
+|---|---|
+| `send_tasks.py` | Ядро: проверка расписания, погода, запрос к ИИ, отправка в Telegram |
+| `plants.json` | База растений: частота полива (`waterFreq`), стадия роста (`stage`) |
+| `history.json` | Память бота: даты последних поливов |
+| `last_weather.json` | Кэш температуры для отслеживания резких изменений |
 
 ---
 
 ## 🚀 Быстрый старт
 
-### 1. Форк и Secrets
-Сделайте **Fork** репозитория и добавьте ключи в **Settings > Secrets and variables > Actions**:
-* `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`, `OPENWEATHER_API_KEY`, `GEMINI_API_KEY`, `CITY_NAME`.
+### 1. Форк репозитория
 
-### 2. Права записи (Важно!)
-Чтобы бот мог обновлять `history.json`, дайте GitHub Actions права на запись:
-1.  **Settings > Actions > General**.
-2.  **Workflow permissions** -> выберите **Read and write permissions**.
-3.  Нажмите **Save**.
+Нажмите **Fork** в правом верхнем углу.
+
+### 2. Добавьте секреты
+
+**Settings → Secrets and variables → Actions → New repository secret**
+
+| Секрет | Описание |
+|---|---|
+| `TELEGRAM_TOKEN` | Токен бота от @BotFather |
+| `TELEGRAM_CHAT_ID` | Ваш Chat ID (узнать у @userinfobot) |
+| `OPENWEATHER_API_KEY` | Ключ с [openweathermap.org](https://openweathermap.org) |
+| `GEMINI_API_KEY` | Ключ с [aistudio.google.com](https://aistudio.google.com) |
+| `CITY_NAME` | Название города, например `Moscow` |
+
+### 3. Дайте права на запись
+
+**Settings → Actions → General → Workflow permissions → Read and write permissions → Save**
+
+Это нужно, чтобы бот мог обновлять `history.json` после каждого напоминания.
+
+### 4. Настройте растения
+
+Отредактируйте `plants.json`:
+
+```json
+[
+  {
+    "id": "lemon-tree",
+    "name": "Лимон",
+    "waterFreq": 4,
+    "stage": "active",
+    "feedShort": "Цитрусовое удобрение 1/4 дозы"
+  }
+]
+```
+
+Поле `stage` может быть: `active`, `dormant` (покой), `recover` (восстановление).
 
 ---
 
 ## 📝 Как это работает
 
-Процесс автоматизирован и не требует вмешательства:
-1. **GitHub Actions** запускает Python-скрипт по расписанию (cron).
-2. Скрипт проверяет условие: 
-   $$Текущая\,дата - Дата\,последнего\,полива \ge Частота\,полива$$
-3. Бот берет данные погоды и передает их в **Gemini** для генерации персонального совета.
-4. Вы получаете сообщение в Telegram.
-5. Скрипт делает автоматический `git push`, обновляя файл истории.
+1. GitHub Actions запускает `send_tasks.py` по расписанию (cron)
+2. Скрипт читает `history.json` и проверяет, пора ли поливать каждое растение
+3. Если пора — запрашивает погоду и отправляет запрос в Gemini за советом
+4. Отправляет сообщение в Telegram
+5. Обновляет `history.json` и делает автоматический `git push`
 
 ---
 
-## 🔧 Troubleshooting
+## 🔧 Решение проблем
 
-* **Бот пишет одно и то же:** Проверьте права *Read and write permissions*. Если бот не может сделать коммит в репозиторий, он «забудет», что вы уже полили растение.
-* **Ошибка `'list' object has no attribute 'get'`:** Проверьте структуру `plants.json`. Все объекты должны быть словарями `{}`.
+**Бот каждый раз напоминает об одних растениях**
+Проверьте права: Settings → Actions → General → Read and write permissions.
+Без права на запись бот не может сохранить дату полива и «забывает» об этом.
+
+**Нет советов от ИИ**
+Проверьте, добавлен ли секрет `GEMINI_API_KEY`. Если ключа нет — бот всё равно работает, но без советов.
+
+**Ошибка в логах Actions**
+Откройте вкладку Actions → выберите последний запуск → посмотрите вывод шага `Run script`.

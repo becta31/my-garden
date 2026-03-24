@@ -147,6 +147,24 @@ def get_season(month: int) -> str:
         9: "Осень", 10: "Осень", 11: "Осень",
     }[month]
 
+def feeding_active(plant: dict, month: int) -> bool:
+    feed_months = plant.get("feedMonths")
+    if not feed_months:
+        return True
+    if not isinstance(feed_months, list):
+        return False
+    allowed = set()
+    for m in feed_months:
+        try:
+            mi = int(m)
+        except Exception:
+            continue
+        if 1 <= mi <= 12:
+            allowed.add(mi)
+    if not allowed:
+        return False
+    return month in allowed
+
 def get_ai_advice(weather, plant_names, month):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -236,7 +254,10 @@ def main():
             line += "🚑 Восстановление: без удобрений\n"
         else:
             if feed_short:
-                line += f"🧪 _{md_escape(feed_short)}_\n"
+                if feeding_active(p, month):
+                    line += f"🧪 _{md_escape(feed_short)}_\n"
+                else:
+                    line += "🧪 Сейчас не сезон внесения удобрений\n"
         text_parts.append(line + "\n")
 
     if plants_to_water:

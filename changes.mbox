@@ -1,0 +1,1052 @@
+From 34058a78f79a262412126f632d68ab6a26354cb0 Mon Sep 17 00:00:00 2001
+From: GitHub Action <action@github.com>
+Date: Sun, 22 Mar 2026 16:05:37 +0000
+Subject: [PATCH 1/9] Update history [skip ci]
+
+---
+ last_weather.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/last_weather.json b/last_weather.json
+index 610b516..fc2518a 100644
+--- a/last_weather.json
++++ b/last_weather.json
+@@ -1 +1 @@
+-{"temp": 8, "saved_at": "2026-03-22T16:03:45.442156"}
+\ No newline at end of file
++{"temp": 10, "saved_at": "2026-03-22T16:05:37.030388"}
+\ No newline at end of file
+-- 
+2.43.0
+
+
+From e8d422c3820808ffa3ec01237871164d00c398b0 Mon Sep 17 00:00:00 2001
+From: Denis <becta31@gmail.com>
+Date: Sun, 22 Mar 2026 21:06:46 +0300
+Subject: [PATCH 2/9] Update send_tasks.py
+
+---
+ send_tasks.py | 347 +++++++++++++++++++++++++-------------------------
+ 1 file changed, 175 insertions(+), 172 deletions(-)
+
+diff --git a/send_tasks.py b/send_tasks.py
+index 1d0ac98..97a90d7 100644
+--- a/send_tasks.py
++++ b/send_tasks.py
+@@ -1,18 +1,11 @@
+-# send_tasks.py — ВЕРСИЯ С ДИАГНОСТИКОЙ
++# send_tasks.py
++
+ import os
+ import json
+-import logging
+ import sys
+-from datetime import datetime
+-import requests
++from datetime import datetime, timezone
+ 
+-logging.basicConfig(
+-    filename='garden.log',
+-    level=logging.INFO,
+-    format='%(asctime)s | %(levelname)s | %(message)s',
+-    encoding='utf-8'
+-)
+-logger = logging.getLogger(__name__)
++import requests
+ 
+ LAST_WEATHER_FILE = "last_weather.json"
+ HISTORY_FILE = "history.json"
+@@ -29,77 +22,69 @@ def md_escape(text) -> str:
+         s = s.replace(char, f'\\{char}')
+     return s
+ 
++
+ def send_to_telegram(text: str):
+     token = os.getenv("TELEGRAM_TOKEN")
+     chat_id = os.getenv("TELEGRAM_CHAT_ID")
+     if not token or not chat_id:
+-        print("ERROR: Нет токена или ID")
++        print("ERROR: Нет токена или ID чата")
+         return False
+-
+     url = f"https://api.telegram.org/bot{token}/sendMessage"
+     payload = {
+         "chat_id": chat_id,
+         "text": text,
+         "parse_mode": "MarkdownV2"
+     }
+-
+     try:
+         response = requests.post(url, json=payload, timeout=15)
+         if response.status_code == 200:
+             print("✅ Сообщение отправлено!")
+             return True
+         else:
+-            print(f"❌ Ошибка: {response.text[:200]}")
++            print(f"❌ Ошибка Telegram: {response.text[:300]}")
+             return False
+     except Exception as e:
+-        print(f"❌ Исключение: {e}")
++        print(f"❌ Исключение при отправке: {e}")
+         return False
+ 
+-def check_file_exists(filepath, description):
++
++def check_file_exists(filepath):
+     if not os.path.exists(filepath):
+         error_msg = f"⚠️ *Ошибка*\nФайл `{filepath}` не найден\\."
+         send_to_telegram(error_msg)
+         sys.exit(1)
+-    return True
++
+ 
+ def load_history():
+-    print(f"--- DIAG: Попытка загрузить {HISTORY_FILE} ---")
+     if not os.path.exists(HISTORY_FILE):
+-        print(f"--- DIAG: Файл {HISTORY_FILE} НЕ СУЩЕСТВУЕТ! Возвращаю пустой словарь.")
+         return {}
+     try:
+         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+             data = json.load(f)
+-            print(f"--- DIAG: Файл прочитан. Тип данных: {type(data)}")
+-            
+-            if not data: 
+-                print("--- DIAG: Файл пуст.")
+-                return {}
+-            
+-            if isinstance(data, dict):
+-                print(f"--- DIAG: Найден словарь. Ключи: {list(data.keys())}")
+-                return data
+-            
+-            if isinstance(data, list):
+-                print("--- DIAG: Найден список. Конвертирую...")
+-                fixed_history = {}
+-                for item in data:
+-                    if isinstance(item, dict) and "plant_id" in item:
+-                        fixed_history[item["plant_id"]] = {"last_watered": item.get("ts")}
+-                return fixed_history
++        if not data:
+             return {}
++        if isinstance(data, dict):
++            return data
++        # Конвертация старого формата (список) в словарь
++        if isinstance(data, list):
++            fixed = {}
++            for item in data:
++                if isinstance(item, dict) and "plant_id" in item:
++                    fixed[item["plant_id"]] = {"last_watered": item.get("ts")}
++            return fixed
++        return {}
+     except Exception as e:
+-        print(f"--- DIAG: ОШИБКА чтения JSON: {e}")
++        print(f"Ошибка чтения history.json: {e}")
+         return {}
+ 
++
+ def save_history(history):
+     try:
+         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+             json.dump(history, f, ensure_ascii=False, indent=2)
+-        print("--- DIAG: История успешно сохранена на диск.")
+     except Exception as e:
+-        logger.error(f"Ошибка сохранения history: {e}")
+-        print(f"--- DIAG: Ошибка при сохранении: {e}")
++        print(f"Ошибка сохранения history.json: {e}")
++
+ 
+ def days_since_last_watering(plant_id: str, history: dict) -> int:
+     entry = history.get(plant_id, {})
+@@ -107,52 +92,67 @@ def days_since_last_watering(plant_id: str, history: dict) -> int:
+     if not last:
+         return 999
+     try:
+-        # Используем UTC дату, так как GitHub Actions работает в UTC
+-        now = datetime.now()
+-        last_dt = datetime.fromisoformat(last)
+-        diff = (now - last_dt).days
+-        return diff
++        now = datetime.now(timezone.utc)
++        last_dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
++        # Если строка без timezone — считаем её UTC
++        if last_dt.tzinfo is None:
++            last_dt = last_dt.replace(tzinfo=timezone.utc)
++        return (now - last_dt).days
+     except Exception as e:
+-        print(f"--- DIAG: Ошибка расчета дней для {plant_id}: {e}")
++        print(f"Ошибка расчёта дней для {plant_id}: {e}")
+         return 999
+ 
++
+ def load_plants():
+     try:
+         with open(PLANTS_FILE, "r", encoding="utf-8") as f:
+             data = json.load(f)
+-            if isinstance(data, list): return data
+-            elif isinstance(data, dict): return data.get("plants", [])
+-            return []
++        if isinstance(data, list):
++            return data
++        if isinstance(data, dict):
++            plants = data.get("plants", [])
++            if not plants:
++                print("WARNING: plants.json — словарь без ключа 'plants'")
++            return plants
++        return []
+     except Exception as e:
+         print(f"ERROR: plants.json не загружен — {e}")
+         return []
+ 
++
+ def load_last_temp():
+     try:
+         with open(LAST_WEATHER_FILE, "r", encoding="utf-8") as f:
+             data = json.load(f)
+-            return data.get("temp") if isinstance(data, dict) else None
+-    except:
++        return data.get("temp") if isinstance(data, dict) else None
++    except Exception:
+         return None
+ 
++
+ def save_last_temp(temp):
+     try:
+         with open(LAST_WEATHER_FILE, "w", encoding="utf-8") as f:
+-            json.dump({"temp": temp, "saved_at": datetime.now().isoformat()}, f, ensure_ascii=False)
+-    except:
++            json.dump(
++                {"temp": temp, "saved_at": datetime.now(timezone.utc).isoformat()},
++                f, ensure_ascii=False
++            )
++    except Exception:
+         pass
+ 
++
+ def get_weather():
+     api_key = os.getenv("OPENWEATHER_API_KEY", "").strip()
+     city = os.getenv("CITY_NAME", "Moscow").strip() or "Moscow"
+     if not api_key:
+         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
+     try:
+-        url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
++        url = (
++            f"http://api.openweathermap.org/data/2.5/weather"
++            f"?q={city}&appid={api_key}&units=metric&lang=ru"
++        )
+         res = requests.get(url, timeout=10).json()
+         if not isinstance(res, dict):
+-             return {"temp": 0, "hum": 50, "desc": "ошибка API", "wind": 0}
+-        
++            return {"temp": 0, "hum": 50, "desc": "ошибка API", "wind": 0}
+         return {
+             "temp": round(res.get("main", {}).get("temp", 0)),
+             "hum": int(res.get("main", {}).get("humidity", 0)),
+@@ -160,25 +160,38 @@ def get_weather():
+             "wind": float(res.get("wind", {}).get("speed", 0)),
+         }
+     except Exception as e:
+-        print(f"Weather error: {e}")
++        print(f"Ошибка погоды: {e}")
+         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
+ 
+-def get_ai_advice(weather, plant_names, month_idx):
++
++def get_season(month: int) -> str:
++    """Возвращает сезон по номеру месяца (1–12)."""
++    return {
++        12: "Зима", 1: "Зима",  2: "Зима",
++         3: "Весна", 4: "Весна", 5: "Весна",
++         6: "Лето",  7: "Лето",  8: "Лето",
++         9: "Осень", 10: "Осень", 11: "сень",
++    }[month]
++
++
++def get_ai_advice(weather, plant_names, month):
+     api_key = os.getenv("GEMINI_API_KEY")
+     if not api_key:
+         return None
+-    season = ["Зима", "Весна", "Лето", "Осень"][month_idx // 3]
+-    prompt = f"""
+-    Ты — опытный, но лаконичный агроном-любитель.
+-    Погода сейчас: {weather['temp']}°C, влажность {weather['hum']}}%.
+-    Сезон: {season}.
+-    Сегодня на поливе: {', '.join(plant_names) if plant_names else 'никого'}.
+-    
+-    Дай один короткий, неочевидный совет по уходу за этими растениями в данных условиях.
+-    Не пиши очевидные вещи (типа "поливай теплой водой"). 
+-    Пиши конкретно и полезно. Не более 200 символов.
+-    """
+-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
++    season = get_season(month)
++    prompt = (
++        f"Ты — опытный, но лаконичный агроном-любитель.\n"
++        f"Погода сейчас: {weather['temp']}°C, влажность {weather['hum']}%.\n"
++        f"Сезон: {season}.\n"
++        f"Сегодня на поливе: {', '.join(plant_names) if plant_names else 'никого'}.\n"
++        f"Дай один короткий, неочевидный совет по уходу за этими растениями в данных условиях. "
++        f"Не пиши банальные вещи (типа 'поливай тёплой водой'). "
++        f"Пиши конкретно и полезно. Не более 200 символов."
++    )
++    url = (
++        "https://generativelanguage.googleapis.com/v1beta/models/"
++        f"gemini-2.0-flash:generateContent?key={api_key}"
++    )
+     payload = {
+         "contents": [{"parts": [{"text": prompt}]}],
+         "generationConfig": {"temperature": 0.7, "maxOutputTokens": 100}
+@@ -187,127 +200,117 @@ def get_ai_advice(weather, plant_names, month_idx):
+         resp = requests.post(url, json=payload, timeout=20)
+         if resp.status_code == 200:
+             data = resp.json()
+-            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text")
++            text = (
++                data.get("candidates", [{}])[0]
++                    .get("content", {})
++                    .get("parts", [{}])[0]
++                    .get("text")
++            )
+             if text:
+                 return text.strip().replace('*', '')
+     except Exception as e:
+-        print(f"AI Advice error: {e}")
++        print(f"Ошибка Gemini: {e}")
+     return None
+ 
+-def weather_comment_fallback(weather, month_idx, delta_temp=None):
++
++def weather_comment_fallback(weather, month, delta_temp=None):
+     temp = weather.get("temp", 0)
+     wind = weather.get("wind", 0)
+     if delta_temp is not None and abs(delta_temp) >= 8:
+-        return f"Резкое {'потепление' if delta_temp > 0 else 'похолодание'} (+{abs(delta_temp)}°)."
++        direction = "потепление" if delta_temp > 0 else "похолодание"
++        return f"Резкое {direction} ({abs(delta_temp):+}°)."
+     if wind >= 12:
+-        return "Сильный ветер."
+-    if month_idx in (2, 3):
++        return "Сильный ветер — растения теряют влагу быстрее."
++    if month in (3, 4, 5):
+         if temp < 5:
+             return "Холодно. Поливай только тёплой водой."
+-        return "Весна! Увеличивай полив."
++        return "Весна! Постепенно увеличивай полив."
+     return None
+ 
++
+ # --- Основая логика ---
+ 
+ def main():
+-    try:
+-        check_file_exists(PLANTS_FILE, "База данных")
+-        
+-        plants = load_plants()
+-        if not plants:
+-            return
+-        
+-        history = load_history()
+-        weather = get_weather()
+-        last_temp = load_last_temp()
+-        delta_temp = weather["temp"] - last_temp if last_temp is not None else None
+-        save_last_temp(weather["temp"])
+-        
+-        month_idx = datetime.now().month - 1
+-        today_str = datetime.now().strftime('%d.%m')
+-        
+-        text_parts = [f"🌿 *ПЛАН САДА — {md_escape(today_str)}*\n"]
+-        text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}%\n")
+-        
+-        plants_to_water_today = []
+-        plants_to_water_names = []
+-
+-        print(f"--- DIAG: Начинаю перебор {len(plants)} растений ---")
+-        
+-        for p in plants:
+-            if not isinstance(p, dict): continue
+-
+-            plant_id = p.get("id", p.get("name", "unknown"))
+-            water_freq = p.get("waterFreq", 7)
+-            name = p.get("name", "Без имени")
+-            
+-            days_passed = days_since_last_watering(plant_id, history)
+-            needs_water = days_passed >= water_freq
+-            
+-            # ДИАГНОСТИКА ДЛЯ ПЕРВОГО РАСТЕНИЯ (Лимоны)
+-            if plant_id == "citrus-group":
+-                print(f"--- DIAG CHECK: {name} ---")
+-                print(f"    ID: {plant_id}")
+-                print(f"    Last Watered (from file): {history.get(plant_id, {}).get('last_watered', 'НЕТ ДАТЫ')}")
+-                print(f"    Days Passed: {days_passed}")
+-                print(f"    Freq: {water_freq}")
+-                print(f"    Needs Water? {needs_water}")
+-                print(f"    Decision: {'ПОЛИВАТЬ' if needs_water else 'ПРОПУСТИТЬ'}")
+-            
+-            if not needs_water:
+-                continue
+-
+-            plants_to_water_today.append(plant_id)
+-            plants_to_water_names.append(name)
+-            
+-            feed_short = p.get("feedShort", "")
+-            stage = str(p.get("stage", "")).strip().lower()
+-            
+-            line = f"📍 *{md_escape(name)}*\n"
+-            line += "💧 *Полив*\n"
+-            
+-            if stage in ("dormant", "покой"):
+-                line += "❄️ Режим покоя: *только вода*\n"
+-            elif stage in ("recover", "восстановление"):
+-                line += "🚑 Восстановление: без удобрений\n"
+-            else:
+-                if feed_short:
+-                    line += f"🧪 _{md_escape(feed_short)}_\n"
+-            
+-            text_parts.append(line + "\n")
+-        
+-        # Логика советов
+-        ai_tip = None
+-        if plants_to_water_today:
+-            ai_tip = get_ai_advice(weather, plants_to_water_names, month_idx)
+-        
+-        if ai_tip:
+-            text_parts.insert(2, f"🧠 _{md_escape(ai_tip)}_\n")
++    check_file_exists(PLANTS_FILE)
++
++    plants = load_plants()
++    if not plants:
++        print("ERROR: Список растений пуст.")
++        return
++
++    history = load_history()
++    weather = get_weather()
++    last_temp = load_last_temp()
++    delta_temp = (weather["temp"] - last_temp) if last_temp is not None else None
++    save_last_temp(weather["temp"])
++
++    now_utc = datetime.now(timezone.utc)
++    month = now_utc.month
++    today_str = now_utc.strftime('%d.%m')
++
++    text_parts = [f"🌿 *ПЛАН САДА — {md_escape(today_str)}*\n"]
++    text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}%\n")
++
++    plants_to_water = []
++    plants_to_water_names = []
++
++    for p in plants:
++        if not isinstance(p, dict):
++            continue
++        plant_id = p.get("id", p.get("name", "unknown"))
++        water_freq = p.get("waterFreq", 7)
++        name = p.get("name", "Без имени")
++
++        days_passed = days_since_last_watering(plant_id, history)
++        if days_passed < water_freq:
++            continue
++
++        plants_to_water.append(plant_id)
++        plants_to_water_names.append(name)
++
++        feed_short = p.get("feedShort", "")
++        stage = str(p.get("stage", "")).strip().lower()
++
++        line = f"📍 *{md_escape(name)}*\n"
++        line += "💧 *Полив*\n"
++
++        if stage in ("dormant", "покой"):
++            line += "❄️ Режим покоя: *только вода*\n"
++        elif stage in ("recover", "восстановление"):
++            line += "🚑 Восстановление: без удобрений\n"
++        else:
++            if feed_short:
++                line += f"🧪 _{md_escape(feed_short)}_\n"
++
++        text_parts.append(line + "\n")
++
++    # Совет от ИИ или fallback
++    if plants_to_water:
++        tip = get_ai_advice(weather, plants_to_water_names, month)
++        if tip:
++            text_parts.insert(2, f"🧠 _{md_escape(tip)}_\n")
+         else:
+-            comment = weather_comment_fallback(weather, month_idx, delta_temp)
++            comment = weather_comment_fallback(weather, month, delta_temp)
+             if comment:
+                 text_parts.insert(2, f"🤖 _{md_escape(comment)}_\n")
++    else:
++        text_parts.append("✅ Полив никому не требуется\\. Отдыхаем\\!")
++
++    full_text = "".join(text_parts)
++
++    # История сохраняется независимо от результата отправки в Telegram
++    now_iso = now_utc.isoformat()
++    for pid in plants_to_water:
++        if pid not in history:
++            history[pid] = {}
++        history[pid]["last_watered"] = now_iso
++    save_history(history)
++
++    if send_to_telegram(full_text):
++        print(f"✅ Готово. Обновлено растений: {len(plants_to_water)}.")
++    else:
++        print("❌ Сообщение не отправлено, но история уже сохранена.")
+ 
+-        if not plants_to_water_today:
+-            text_parts.append("✅ Полив никому не требуется\\. Отдыхаем\\!")
+-        
+-        full_text = "".join(text_parts)
+-        
+-        if send_to_telegram(full_text):
+-            now_iso = datetime.now().isoformat()
+-            for pid in plants_to_water_today:
+-                if pid not in history:
+-                    history[pid] = {}
+-                history[pid]["last_watered"] = now_iso
+-            
+-            save_history(history)
+-            print(f"✅ Учтено: обновлена история для {len(plants_to_water_today)} растений.")
+-        else:
+-            print("❌ Сообщение не отправлено.")
+-    
+-    except Exception as e:
+-        print(f"❌ Критическая ошибка: {e}")
+-        logger.error(f"Критическая ошибка: {e}")
+ 
+ if __name__ == "__main__":
+     main()
+-- 
+2.43.0
+
+
+From b22ee627ab7865c5d743e057acfcfe9018e5bcb5 Mon Sep 17 00:00:00 2001
+From: Denis <becta31@gmail.com>
+Date: Sun, 22 Mar 2026 21:12:37 +0300
+Subject: [PATCH 3/9] Update send_tasks.py
+
+-- 
+2.43.0
+
+
+From 6262f65af28ab11b340c14d95a810491e0ad5baa Mon Sep 17 00:00:00 2001
+From: Denis <becta31@gmail.com>
+Date: Sun, 22 Mar 2026 21:14:23 +0300
+Subject: [PATCH 4/9] Update send_tasks.py
+
+---
+ send_tasks.py | 79 ++++++++++-----------------------------------------
+ 1 file changed, 15 insertions(+), 64 deletions(-)
+
+diff --git a/send_tasks.py b/send_tasks.py
+index 97a90d7..e6c0a63 100644
+--- a/send_tasks.py
++++ b/send_tasks.py
+@@ -11,8 +11,6 @@ LAST_WEATHER_FILE = "last_weather.json"
+ HISTORY_FILE = "history.json"
+ PLANTS_FILE = "plants.json"
+ 
+-# --- Вспомогательные функции ---
+-
+ def md_escape(text) -> str:
+     if text is None:
+         return ""
+@@ -22,7 +20,6 @@ def md_escape(text) -> str:
+         s = s.replace(char, f'\\{char}')
+     return s
+ 
+-
+ def send_to_telegram(text: str):
+     token = os.getenv("TELEGRAM_TOKEN")
+     chat_id = os.getenv("TELEGRAM_CHAT_ID")
+@@ -30,11 +27,7 @@ def send_to_telegram(text: str):
+         print("ERROR: Нет токена или ID чата")
+         return False
+     url = f"https://api.telegram.org/bot{token}/sendMessage"
+-    payload = {
+-        "chat_id": chat_id,
+-        "text": text,
+-        "parse_mode": "MarkdownV2"
+-    }
++    payload = {"chat_id": chat_id, "text": text, "parse_mode": "MarkdownV2"}
+     try:
+         response = requests.post(url, json=payload, timeout=15)
+         if response.status_code == 200:
+@@ -47,14 +40,11 @@ def send_to_telegram(text: str):
+         print(f"❌ Исключение при отправке: {e}")
+         return False
+ 
+-
+ def check_file_exists(filepath):
+     if not os.path.exists(filepath):
+-        error_msg = f"⚠️ *Ошибка*\nФайл `{filepath}` не найден\\."
+-        send_to_telegram(error_msg)
++        send_to_telegram(f"⚠️ *Ошибка*\nФайл `{filepath}` не найден\\.")
+         sys.exit(1)
+ 
+-
+ def load_history():
+     if not os.path.exists(HISTORY_FILE):
+         return {}
+@@ -65,7 +55,6 @@ def load_history():
+             return {}
+         if isinstance(data, dict):
+             return data
+-        # Конвертация старого формата (список) в словарь
+         if isinstance(data, list):
+             fixed = {}
+             for item in data:
+@@ -77,7 +66,6 @@ def load_history():
+         print(f"Ошибка чтения history.json: {e}")
+         return {}
+ 
+-
+ def save_history(history):
+     try:
+         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+@@ -85,7 +73,6 @@ def save_history(history):
+     except Exception as e:
+         print(f"Ошибка сохранения history.json: {e}")
+ 
+-
+ def days_since_last_watering(plant_id: str, history: dict) -> int:
+     entry = history.get(plant_id, {})
+     last = entry.get("last_watered")
+@@ -94,7 +81,6 @@ def days_since_last_watering(plant_id: str, history: dict) -> int:
+     try:
+         now = datetime.now(timezone.utc)
+         last_dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
+-        # Если строка без timezone — считаем её UTC
+         if last_dt.tzinfo is None:
+             last_dt = last_dt.replace(tzinfo=timezone.utc)
+         return (now - last_dt).days
+@@ -102,7 +88,6 @@ def days_since_last_watering(plant_id: str, history: dict) -> int:
+         print(f"Ошибка расчёта дней для {plant_id}: {e}")
+         return 999
+ 
+-
+ def load_plants():
+     try:
+         with open(PLANTS_FILE, "r", encoding="utf-8") as f:
+@@ -119,7 +104,6 @@ def load_plants():
+         print(f"ERROR: plants.json не загружен — {e}")
+         return []
+ 
+-
+ def load_last_temp():
+     try:
+         with open(LAST_WEATHER_FILE, "r", encoding="utf-8") as f:
+@@ -128,28 +112,20 @@ def load_last_temp():
+     except Exception:
+         return None
+ 
+-
+ def save_last_temp(temp):
+     try:
+         with open(LAST_WEATHER_FILE, "w", encoding="utf-8") as f:
+-            json.dump(
+-                {"temp": temp, "saved_at": datetime.now(timezone.utc).isoformat()},
+-                f, ensure_ascii=False
+-            )
++            json.dump({"temp": temp, "saved_at": datetime.now(timezone.utc).isoformat()}, f, ensure_ascii=False)
+     except Exception:
+         pass
+ 
+-
+ def get_weather():
+     api_key = os.getenv("OPENWEATHER_API_KEY", "").strip()
+     city = os.getenv("CITY_NAME", "Moscow").strip() or "Moscow"
+     if not api_key:
+         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
+     try:
+-        url = (
+-            f"http://api.openweathermap.org/data/2.5/weather"
+-            f"?q={city}&appid={api_key}&units=metric&lang=ru"
+-        )
++        url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=ru"
+         res = requests.get(url, timeout=10).json()
+         if not isinstance(res, dict):
+             return {"temp": 0, "hum": 50, "desc": "ошибка API", "wind": 0}
+@@ -163,17 +139,14 @@ def get_weather():
+         print(f"Ошибка погоды: {e}")
+         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
+ 
+-
+ def get_season(month: int) -> str:
+-    """Возвращает сезон по номеру месяца (1–12)."""
+     return {
+-        12: "Зима", 1: "Зима",  2: "Зима",
+-         3: "Весна", 4: "Весна", 5: "Весна",
+-         6: "Лето",  7: "Лето",  8: "Лето",
+-         9: "Осень", 10: "Осень", 11: "Осень",
++        12: "Зима", 1: "Зима", 2: "Зима",
++        3: "Весна", 4: "Весна", 5: "Весна",
++        6: "Лето", 7: "Лето", 8: "Лето",
++        9: "Осень", 10: "Осень", 11: "Осень",
+     }[month]
+ 
+-
+ def get_ai_advice(weather, plant_names, month):
+     api_key = os.getenv("GEMINI_API_KEY")
+     if not api_key:
+@@ -185,13 +158,9 @@ def get_ai_advice(weather, plant_names, month):
+         f"Сезон: {season}.\n"
+         f"Сегодня на поливе: {', '.join(plant_names) if plant_names else 'никого'}.\n"
+         f"Дай один короткий, неочевидный совет по уходу за этими растениями в данных условиях. "
+-        f"Не пиши банальные вещи (типа 'поливай тёплой водой'). "
+-        f"Пиши конкретно и полезно. Не более 200 символов."
+-    )
+-    url = (
+-        "https://generativelanguage.googleapis.com/v1beta/models/"
+-        f"gemini-2.0-flash:generateContent?key={api_key}"
++        f"Не пиши банальные вещи. Пиши конкретно и полезно. Не более 200 символов."
+     )
++    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + api_key
+     payload = {
+         "contents": [{"parts": [{"text": prompt}]}],
+         "generationConfig": {"temperature": 0.7, "maxOutputTokens": 100}
+@@ -200,19 +169,13 @@ def get_ai_advice(weather, plant_names, month):
+         resp = requests.post(url, json=payload, timeout=20)
+         if resp.status_code == 200:
+             data = resp.json()
+-            text = (
+-                data.get("candidates", [{}])[0]
+-                    .get("content", {})
+-                    .get("parts", [{}])[0]
+-                    .get("text")
+-            )
++            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text")
+             if text:
+                 return text.strip().replace('*', '')
+     except Exception as e:
+         print(f"Ошибка Gemini: {e}")
+     return None
+ 
+-
+ def weather_comment_fallback(weather, month, delta_temp=None):
+     temp = weather.get("temp", 0)
+     wind = weather.get("wind", 0)
+@@ -227,12 +190,8 @@ def weather_comment_fallback(weather, month, delta_temp=None):
+         return "Весна! Постепенно увеличивай полив."
+     return None
+ 
+-
+-# --- Основная логика ---
+-
+ def main():
+     check_file_exists(PLANTS_FILE)
+-
+     plants = load_plants()
+     if not plants:
+         print("ERROR: Список растений пуст.")
+@@ -261,8 +220,7 @@ def main():
+         water_freq = p.get("waterFreq", 7)
+         name = p.get("name", "Без имени")
+ 
+-        days_passed = days_since_last_watering(plant_id, history)
+-        if days_passed < water_freq:
++        if days_since_last_watering(plant_id, history) < water_freq:
+             continue
+ 
+         plants_to_water.append(plant_id)
+@@ -271,9 +229,7 @@ def main():
+         feed_short = p.get("feedShort", "")
+         stage = str(p.get("stage", "")).strip().lower()
+ 
+-        line = f"📍 *{md_escape(name)}*\n"
+-        line += "💧 *Полив*\n"
+-
++        line = f"📍 *{md_escape(name)}*\n💧 *Полив*\n"
+         if stage in ("dormant", "покой"):
+             line += "❄️ Режим покоя: *только вода*\n"
+         elif stage in ("recover", "восстановление"):
+@@ -281,10 +237,8 @@ def main():
+         else:
+             if feed_short:
+                 line += f"🧪 _{md_escape(feed_short)}_\n"
+-
+         text_parts.append(line + "\n")
+ 
+-    # Совет от ИИ или fallback
+     if plants_to_water:
+         tip = get_ai_advice(weather, plants_to_water_names, month)
+         if tip:
+@@ -296,9 +250,7 @@ def main():
+     else:
+         text_parts.append("✅ Полив никому не требуется\\. Отдыхаем\\!")
+ 
+-    full_text = "".join(text_parts)
+-
+-    # История сохраняется независимо от результата отправки в Telegram
++    # История сохраняется ДО отправки — не теряется при сбое Telegram
+     now_iso = now_utc.isoformat()
+     for pid in plants_to_water:
+         if pid not in history:
+@@ -306,11 +258,10 @@ def main():
+         history[pid]["last_watered"] = now_iso
+     save_history(history)
+ 
+-    if send_to_telegram(full_text):
++    if send_to_telegram("".join(text_parts)):
+         print(f"✅ Готово. Обновлено растений: {len(plants_to_water)}.")
+     else:
+         print("❌ Сообщение не отправлено, но история уже сохранена.")
+ 
+-
+ if __name__ == "__main__":
+     main()
+-- 
+2.43.0
+
+
+From a56733c37757493c32e4c1a0eaea4f2b604eabb7 Mon Sep 17 00:00:00 2001
+From: becta31 <becta31@gmail.com>
+Date: Sun, 22 Mar 2026 21:51:22 +0300
+Subject: [PATCH 5/9] Update README
+
+---
+ README.md | 109 +++++++++++++++++++++++++++++++++++-------------------
+ 1 file changed, 70 insertions(+), 39 deletions(-)
+
+diff --git a/README.md b/README.md
+index 63c2319..9e8ade5 100644
+--- a/README.md
++++ b/README.md
+@@ -1,65 +1,96 @@
+-# 🌿 Smart Garden Bot (AI-Powered)
++# 🌿 Smart Garden Bot
+ 
+-![Python](https://img.shields.io/badge/python-3.12-blue.svg)
+-![License](https://img.shields.io/badge/license-MIT-green.svg)
+-![GitHub Actions](https://img.shields.io/badge/backend-GitHub%20Actions-black.svg)
++[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
++[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
++[![GitHub Actions](https://img.shields.io/badge/backend-GitHub%20Actions-black.svg)](https://github.com/features/actions)
+ 
+-**Умная система уведомлений для домашнего сада с ИИ-советами и памятью.**
+-
+-Бот не просто напоминает о поливе, но и анализирует погоду, ведёт статистику и даёт персональные рекомендации от **Google Gemini**. Работает полностью бесплатно через GitHub Actions — собственный сервер не нужен.
++Умный Telegram-бот для домашнего сада. Напоминает о поливе, учитывает погоду и даёт советы от **Google Gemini**. Работает бесплатно через GitHub Actions — сервер не нужен.
+ 
+ ---
+ 
+-## ✨ Основные возможности
++## ✨ Возможности
+ 
+-* 🧠 **Интеллектуальная память:** Бот фиксирует выполнение задач. После уведомления растение исчезает из списка до наступления следующего срока.
+-* 🤖 **ИИ-эксперт:** Интеграция с **Google Gemini** для генерации советов по уходу в зависимости от текущей погоды и сезона.
+-* 🌡 **Учет метеоусловий:** Синхронизация с **OpenWeatherMap**. Бот анализирует температуру и влажность.
+-* 📅 **Умный график:** Автоматический расчет интервалов полива на основе `plants.json`.
+-* 🚀 **Zero Cost:** Автоматизация через GitHub Actions. Вам не нужно держать включенным компьютер или арендовать VPS.
+-* 📱 **Telegram Interface:** Удобное управление через мессенджер с кнопками подтверждения.
++- 🧠 **Память** — бот запоминает дату последнего полива и не беспокоит раньше времени
++- 🤖 **ИИ-советы** — Google Gemini даёт рекомендации с учётом погоды и сезона
++- 🌡 **Погода** — данные с OpenWeatherMap, учёт температуры и влажности
++- 📅 **Гибкий график** — индивидуальная частота полива для каждого растения
++- 🚀 **Бесплатно** — запускается по cron через GitHub Actions, без VPS и постоянно включённого компьютера
+ 
+ ---
+ 
+-## 📂 Структура проекта
++## 📂 Структура
+ 
+ | Файл | Описание |
+-| :--- | :--- |
+-| `send_tasks.py` | **Ядро:** проверка погоды, расчет дат, запросы к ИИ и отправка уведомлений. |
+-| `process_updates.py` | Обработчик обратной связи (кнопок) из Telegram. |
+-| `plants.json` | **База растений:** частота полива (`waterFreq`) и стадия роста (`stage`). |
+-| `history.json` | **Файл памяти:** хранит даты последних поливов. |
+-| `last_weather.json` | Кэш для отслеживания изменений температуры. |
++|---|---|
++| `send_tasks.py` | Ядро: проверка расписания, погода, запрос к ИИ, отправка в Telegram |
++| `plants.json` | База растений: частота полива (`waterFreq`), стадия роста (`stage`) |
++| `history.json` | Память бота: даты последних поливов |
++| `last_weather.json` | Кэш температуры для отслеживания резких изменений |
+ 
+ ---
+ 
+ ## 🚀 Быстрый старт
+ 
+-### 1. Форк и Secrets
+-Сделайте **Fork** репозитория и добавьте ключи в **Settings > Secrets and variables > Actions**:
+-* `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`, `OPENWEATHER_API_KEY`, `GEMINI_API_KEY`, `CITY_NAME`.
++### 1. Форк репозитория
++
++Нажмите **Fork** в правом верхнем углу.
++
++### 2. Добавьте секреты
++
++**Settings → Secrets and variables → Actions → New repository secret**
++
++| Секрет | Описание |
++|---|---|
++| `TELEGRAM_TOKEN` | Токен бота от @BotFather |
++| `TELEGRAM_CHAT_ID` | Ва Chat ID (узнать у @userinfobot) |
++| `OPENWEATHER_API_KEY` | Ключ с [openweathermap.org](https://openweathermap.org) |
++| `GEMINI_API_KEY` | Ключ с [aistudio.google.com](https://aistudio.google.com) |
++| `CITY_NAME` | Название города, например `Moscow` |
++
++### 3. Дайте права на запись
++
++**Settings → Actions → General → Workflow permissions → Read and write permissions → Save**
+ 
+-### 2. Права записи (Важно!)
+-Чтобы бот мог обновлять `history.json`, дайте GitHub Actions права на запись:
+-1.  **Settings > Actions > General**.
+-2.  **Workflow permissions** -> выберите **Read and write permissions**.
+-3.  Нажмите **Save**.
++Это нужно, чтобы бот мог обновлять `history.json` после каждого напоминания.
++
++### 4. Настройте растения
++
++Отредактируйте `plants.json`:
++
++```json
++[
++  {
++    "id": "lemon-tree",
++    "name": "Лимон",
++    "waterFreq": 4,
++    "stage": "active",
++    "feedShort": "Цитрусовое удобрение 1/4 дозы"
++  }
++]
++```
++
++Поле `stage` может быть: `active`, `dormant` (покой), `recover` (восстановление).
+ 
+ ---
+ 
+ ## 📝 Как это работает
+ 
+-Процесс автоматизирован и не требует вмешательства:
+-1. **GitHub Actions** запускает Python-скрипт по расписанию (cron).
+-2. Скрипт проверяет условие: 
+-   $$Текущая\,дата - Дата\,последнего\,полива \ge Частота\,полива$$
+-3. Бот берет данные погоды и передает их в **Gemini** для генерации персонального совета.
+-4. Вы получаете сообщение в Telegram.
+-5. Скрипт делает автоматический `git push`, обновляя файл истории.
++1. GitHub Actions запускает `send_tasks.py` по расписанию (cron)
++2. Скрипт читает `history.json` и проверяет, пора ли поливать каждое растение
++3. Если пора — запрашивает погоду и отправляет запрос в Gemini за советом
++4. Отправляет сообщение в Telegram
++5. Обновляет `history.json` и делает автоматический `git push`
+ 
+ ---
+ 
+-## 🔧 Troubleshooting
++## 🔧 Решение проблем
++
++**Бот каждый раз напоминает об одних растениях**
++Проверьте права: Settings → Actions → General → Read and write permissions.
++Без права на запись бот не может сохранить дату полива и «забывает» об этом.
++
++**Нет советов от ИИ**
++Проверьте, добавлен ли секрет `GEMINI_API_KEY`. Если ключа нет — бот всё равно работает, но без советов.
+ 
+-* **Бот пишет одно и то же:** Проверьте права *Read and write permissions*. Если бот не может сделать коммит в репозиторий, он «забудет», что вы уже полили растение.
+-* **Ошибка `'list' object has no attribute 'get'`:** Проверьте структуру `plants.json`. Все объекты должны быть словарями `{}`.
++**Ошибка в логах Actions**
++Откройте вкладку Actions → выберите последний запуск → посмотрите вывод шага `Run script`.
+-- 
+2.43.0
+
+
+From 8ae8b65e23f679f1bfb6ce52147db839782aee07 Mon Sep 17 00:00:00 2001
+From: becta31 <becta31@gmail.com>
+Date: Sun, 22 Mar 2026 21:55:17 +0300
+Subject: [PATCH 6/9] =?UTF-8?q?=D0=BF=D0=B8=D1=81=D0=B0=D0=BD=D0=B8=D0=B5?=
+ =?UTF-8?q?=20=D0=B8=D0=B7=D0=BC=D0=B5=D0=BD=D0=B5=D0=BD=D0=B8=D0=B9?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 9e8ade5..b0a2367 100644
+--- a/README.md
++++ b/README.md
+@@ -14,7 +14,7 @@
+ - 🤖 **ИИ-советы** — Google Gemini даёт рекомендации с учётом погоды и сезона
+ - 🌡 **Погода** — данные с OpenWeatherMap, учёт температуры и влажности
+ - 📅 **Гибкий график** — индивидуальная частота полива для каждого растения
+-- 🚀 **Бесплатно** — запускается по cron через GitHub Actions, без VPS и постоянно включённого компьютера
++- 🚀 **Бесплатно** — запускается по cron через GitHub Actions, без VPS и постоянно включённого компьютера ПК
+ 
+ ---
+ 
+-- 
+2.43.0
+
+
+From 9d6ee4e595b056ca8cc32fadf2ebf170379b283d Mon Sep 17 00:00:00 2001
+From: becta31 <becta31@gmail.com>
+Date: Sun, 22 Mar 2026 21:57:00 +0300
+Subject: [PATCH 7/9] =?UTF-8?q?=D0=BF=D0=B8=D1=81=D0=B0=D0=BD=D0=B8=D0=B5?=
+ =?UTF-8?q?=20=D0=B8=D0=B7=D0=BC=D0=B5=D0=BD=D0=B5=D0=BD=D0=B8=D0=B9?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index b0a2367..9e8ade5 100644
+--- a/README.md
++++ b/README.md
+@@ -14,7 +14,7 @@
+ - 🤖 **ИИ-советы** — Google Gemini даёт рекомендации с учётом погоды и сезона
+ - 🌡 **Погода** — данные с OpenWeatherMap, учёт температуры и влажности
+ - 📅 **Гибкий график** — индивидуальная частота полива для каждого растения
+-- 🚀 **Бесплатно** — запускается по cron через GitHub Actions, без VPS и постоянно включённого компьютера ПК
++- 🚀 **Бесплатно** — запускается по cron через GitHub Actions, без VPS и постоянно включённого компьютера
+ 
+ ---
+ 
+-- 
+2.43.0
+
+
+From c7f221aec9b5614a1ce693327ad7cabf822ceb25 Mon Sep 17 00:00:00 2001
+From: GitHub Action <action@github.com>
+Date: Mon, 23 Mar 2026 07:09:12 +0000
+Subject: [PATCH 8/9] Update history [skip ci]
+
+---
+ last_weather.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/last_weather.json b/last_weather.json
+index fc2518a..76b18dc 100644
+--- a/last_weather.json
++++ b/last_weather.json
+@@ -1 +1 @@
+-{"temp": 10, "saved_at": "2026-03-22T16:05:37.030388"}
+\ No newline at end of file
++{"temp": 4, "saved_at": "2026-03-23T07:09:12.296502+00:00"}
+\ No newline at end of file
+-- 
+2.43.0
+
+
+From ecf2042de2920d2a6247ff86faca3f27794c5abc Mon Sep 17 00:00:00 2001
+From: GitHub Action <action@github.com>
+Date: Tue, 24 Mar 2026 07:03:18 +0000
+Subject: [PATCH 9/9] Update history [skip ci]
+
+---
+ last_weather.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/last_weather.json b/last_weather.json
+index 76b18dc..61fb1e8 100644
+--- a/last_weather.json
++++ b/last_weather.json
+@@ -1 +1 @@
+-{"temp": 4, "saved_at": "2026-03-23T07:09:12.296502+00:00"}
+\ No newline at end of file
++{"temp": 6, "saved_at": "2026-03-24T07:03:18.394153+00:00"}
+\ No newline at end of file
+-- 
+2.43.0

@@ -141,7 +141,7 @@ def get_weather():
         return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
     try:
         url = (
-            f"http://api.openweathermap.org/data/2.5/weather"
+            f"https://api.openweathermap.org/data/2.5/weather"
             f"?q={city}&appid={api_key}&units=metric&lang=ru"
         )
         res = requests.get(url, timeout=10).json()

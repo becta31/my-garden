@@ -11,14 +11,6 @@ PLANTS_FILE = "plants.json" # Теперь используем тот же фа
 
 DEDUP_SECONDS = 60
 
-def utc_now_iso():
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-def parse_iso(ts: str) -> datetime | None:
-    try:
-        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    except Exception:
-        return None
 
 # --------- plants.json loader ----------
 def load_plants():
@@ -74,11 +66,25 @@ def save_history(history):
         json.dump(history, f, ensure_ascii=False, indent=2)
 
 def update_last_watered(history, plant_id):
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    now_iso = now.replace(microsecond=0).isoformat()
     if plant_id not in history:
         history[plant_id] = {}
+
+    prev = history[plant_id].get("last_watered")
+    prev_dt = None
+    if prev:
+        try:
+            prev_dt = datetime.fromisoformat(prev.replace("Z", "+00:00"))
+        except Exception:
+            prev_dt = None
+    if prev_dt is not None:
+        delta = (now - prev_dt).total_seconds()
+        if delta < DEDUP_SECONDS:
+            return False
+
     history[plant_id]["last_watered"] = now_iso
-    return history
+    return True
 
 # --------- telegram helpers ----------
 def tg_request(token, method, payload=None):
@@ -152,8 +158,11 @@ def main():
                 plant_id = m.group(1).strip()
                 plant = plants_by_id.get(plant_id)
                 if plant:
-                    update_last_watered(history, plant_id)
-                    answer_callback(token, cqid, "Записал ✅")
+                    updated = update_last_watered(history, plant_id)
+                    if updated:
+                        answer_callback(token, cqid, "Записал ✅")
+                    else:
+                        answer_callback(token, cqid, "Уже записано недавно ⏱")
                 else:
                     answer_callback(token, cqid, "Не нашёл растение в базе 😕")
                 continue

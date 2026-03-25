@@ -197,11 +197,11 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'никого'
     
-    # URL из вашего примера
     url = "https://router.huggingface.co/v1/chat/completions"
     
-    # Модель из вашего примера (GLM-5 через провайдера novita)
-    model_id = "zai-org/GLM-5:novita"
+    # --- ЗАМЕНА НА QWEN 2.5 (через novita) ---
+    # Используем провайдера novita, который у вас прошел проверку (200 OK)
+    model_id = "Qwen/Qwen2.5-7B-Instruct:novita"
     
     print(f"🧠 Запрашиваю совет у {model_id}...")
 
@@ -231,8 +231,10 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
+            # Добавим отладку: если текст пустой, посмотрим, что пришло
+            # print(f"DEBUG RAW DATA: {data}") 
+            
             try:
-                # Стандартный ответ OpenAI
                 text = data["choices"][0]["message"]["content"]
                 
                 clean_text = text.strip().replace('*', '').split('\n')[0]
@@ -244,7 +246,7 @@ def get_ai_advice(weather, plant_names, month):
                     print(f"✅ Совет получен: {clean_text}")
                     return clean_text
                 else:
-                    print("⚠️ ИИ вернул пустой текст.")
+                    print("⚠️ ИИ вернул пустой текст (попробуйте модель Qwen).")
             except (KeyError, IndexError):
                 print(f"⚠️ Неожиданный формат ответа: {data}")
         

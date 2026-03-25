@@ -197,34 +197,31 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'nobody'
     
-    url = "https://router.huggingface.co/v1/chat/completions"
+    # Используем классический endpoint (не v1/chat/completions)
+    url = "https://router.huggingface.co/hf-inference/models/microsoft/Phi-3-mini-4k-instruct"
     
-    # GLM-5 единственная, кто дала 200 OK
-    model_id = "zai-org/GLM-5:novita"
-    
-    print(f"🧠 Запрашиваю совет у {model_id}...")
+    print(f"🧠 Запрашиваю совет у microsoft/Phi-3-mini-4k-instruct...")
+
+    # Phi-3 любит четкое форматирование
+    prompt = (
+        f"<|user|>\n"
+        f"You are a gardener. Give ONE short advice (max 20 words) for: {plants_list}. "
+        f"Weather: {weather['temp']}C. Reply in Russian.<|end|>\n"
+        f"<|assistant|">\n"
+    )
 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     
-    # ПРОСТОЙ АНГЛИЙСКИЙ ПРОМПТ ДЛЯ ТЕСТА
-    prompt_text = (
-        f"You are a gardener. Give one short advice (max 20 words) for these plants: {plants_list}. "
-        f"Weather: {weather['temp']}C. Reply in English."
-    )
-
     payload = {
-        "model": model_id,
-        "messages": [
-            {
-                "role": "user", 
-                "content": prompt_text
-            }
-        ],
-        "max_tokens": 50,
-        "temperature": 0.7
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 50,
+            "return_full_text": False,  # Вернуть только новый текст
+            "temperature": 0.7
+        }
     }
 
     try:
@@ -232,24 +229,26 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
-            # Debug: print raw data if needed
-            # print(f"DEBUG DATA: {data}")
-            
-            try:
-                text = data["choices"][0]["message"]["content"]
+            # Классический формат: список словарей [{"generated_text": "..."}]
+            if isinstance(data, list) and data:
+                text = data[0].get("generated_text", "")
                 
-                clean_text = text.strip().replace('*', '')
+                # Чистим текст от лишних тегов
+                clean_text = text.strip().replace('<|end|>', '').replace('*', '')
                 
                 if clean_text:
                     print(f"✅ Совет получен: {clean_text}")
                     return clean_text
                 else:
                     print("⚠️ ИИ вернул пустой текст.")
-            except (KeyError, IndexError):
+            else:
                 print(f"⚠️ Неожиданный формат ответа: {data}")
         
+        elif resp.status_code == 503:
+            print("⏳ Модель загружается... Попробуйте через 20 сек.")
+        
         elif resp.status_code == 401:
-            print("❌ Ошибка 401: Проверьте HF_API_TOKEN.")
+            print("❌ Ошибка 401: Неверный токен HF_API_TOKEN.")
             
         else:
             print(f"❌ Ошибка HF API: {resp.status_code}")

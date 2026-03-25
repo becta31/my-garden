@@ -199,10 +199,8 @@ def get_ai_advice(weather, plant_names, month):
     
     url = "https://router.huggingface.co/v1/chat/completions"
     
-    # --- РЕШЕНИЕ ---
-    # Используем провайдера :novita (он рабочий)
-    # Используем модель Qwen 2 (версия 2.5 не поддерживается, версия 2 поддерживается)
-    model_id = "Qwen/Qwen2-7B-Instruct:novita"
+    # Возвращаем GLM-5 (она выдала 200 OK, значит доступ есть)
+    model_id = "zai-org/GLM-5:novita"
     
     print(f"🧠 Запрашиваю совет у {model_id}...")
 
@@ -211,16 +209,21 @@ def get_ai_advice(weather, plant_names, month):
         "Content-Type": "application/json"
     }
     
+    # Объединяем System и User в один понятный промпт
+    prompt_text = (
+        f"Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. "
+        f"Не пиши про 'теплую воду'. Пиши только суть.\n\n"
+        f"Погода: {weather['temp']}°C, влажность {weather['hum']}%.\n"
+        f"Сезон: {season}.\n"
+        f"Растения: {plants_list}."
+    )
+
     payload = {
         "model": model_id,
         "messages": [
             {
-                "role": "system", 
-                "content": "Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. Не пиши про 'теплую воду'. Пиши только суть."
-            },
-            {
                 "role": "user", 
-                "content": f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения: {plants_list}."
+                "content": prompt_text
             }
         ],
         "max_tokens": 80,

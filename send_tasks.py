@@ -197,30 +197,33 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'никого'
     
-    model_id = "mistralai/Mistral-7B-Instruct-v0.3"
+    # URL из вашего примера
+    url = "https://router.huggingface.co/v1/chat/completions"
     
-    # Используем новый адрес роутера, но "классический" путь /models/
-    url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
+    # Модель из вашего примера (GLM-5 через провайдера novita)
+    model_id = "zai-org/GLM-5:novita"
     
-    print(f"🧠 Запрашиваю совет у {model_id} (Text Gen)...")
+    print(f"🧠 Запрашиваю совет у {model_id}...")
 
-    # Ручной шаблон для Mistral (обязательно для Text Generation API)
-    prompt = (
-        f"<s>[INST] Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. "
-        f"Не пиши про 'теплую воду'. Пиши только суть.\n\n"
-        f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. "
-        f"Растения: {plants_list}. [/INST]"
-    )
-
-    headers = {"Authorization": f"Bearer {api_key}"}
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 80,
-            "temperature": 0.7,
-            "return_full_text": False,  # Не возвращаем промпт
-            "stop": ["</s>", "\n\n"]    # Стоп-слова
-        }
+        "model": model_id,
+        "messages": [
+            {
+                "role": "system", 
+                "content": "Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. Не пиши про 'теплую воду'. Пиши только суть."
+            },
+            {
+                "role": "user", 
+                "content": f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения: {plants_list}."
+            }
+        ],
+        "max_tokens": 80,
+        "temperature": 0.7
     }
 
     try:
@@ -228,21 +231,26 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
-            # Классический формат ответа: список словарей
-            if isinstance(data, list) and data:
-                text = data[0].get("generated_text", "")
+            try:
+                # Стандартный ответ OpenAI
+                text = data["choices"][0]["message"]["content"]
                 
-                clean_text = text.strip().replace('*', '')
+                clean_text = text.strip().replace('*', '').split('\n')[0]
+                
+                if len(clean_text) > 160:
+                    clean_text = clean_text[:157] + "..."
+
                 if clean_text:
                     print(f"✅ Совет получен: {clean_text}")
                     return clean_text
                 else:
                     print("⚠️ ИИ вернул пустой текст.")
-            else:
+            except (KeyError, IndexError):
                 print(f"⚠️ Неожиданный формат ответа: {data}")
         
-        elif resp.status_code == 503:
-            print("⏳ Модель прогревается... Попробуйте через 20 сек.")
+        elif resp.status_code == 401:
+            print("❌ Ошибка 401: Проверьте HF_API_TOKEN.")
+            
         else:
             print(f"❌ Ошибка HF API: {resp.status_code}")
             print(f"   Ответ: {resp.text[:200]}")

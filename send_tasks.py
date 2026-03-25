@@ -212,9 +212,9 @@ def get_ai_advice(weather, plant_names, month):
         completion = client.chat.completions.create(
             messages=[
                 {
-                    "role": "system", 
-                    "content": "Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. Не пиши про 'теплую воду'. Пиши только суть."
-                },
+    "role": "system", 
+    "content": "Ты — профессиональный агроном. Твоя задача — дать ОДИН короткий совет (до 150 символов) на русском языке. Пиши просто и понятно, избегай сложных формулировок. Не пиши про 'теплую воду'."
+},
                 {
                     "role": "user", 
                     "content": f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения: {plants_list}."

@@ -209,16 +209,14 @@ def get_ai_advice(weather, plant_names, month):
     try:
         client = Cerebras(api_key=api_key)
 
-                completion = client.chat.completions.create(
+        completion = client.chat.completions.create(
             messages=[
                 {
                     "role": "system", 
-                    # Уточняем, что растения КОМНАТНЫЕ
                     "content": "Ты — профессиональный агроном. Твоя задача — дать ОДИН короткий совет (до 150 символов) на русском языке для КОМНАТНЫХ растений. Учитывай погоду на улице (холодный подоконник, сквозняки, яркость солнца). Пиши просто."
                 },
                 {
                     "role": "user", 
-                    # Уточняем, что погода НА УЛИЦЕ
                     "content": f"Погода на улице: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения на поливе: {plants_list}."
                 }
             ],

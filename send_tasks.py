@@ -195,11 +195,11 @@ def get_ai_advice(weather, plant_names, month):
         return None
 
     season = get_season(month)
-    plants_list = ', '.join(plant_names) if plant_names else 'никого'
+    plants_list = ', '.join(plant_names) if plant_names else 'nobody'
     
     url = "https://router.huggingface.co/v1/chat/completions"
     
-    # Возвращаем GLM-5 (она выдала 200 OK, значит доступ есть)
+    # GLM-5 единственная, кто дала 200 OK
     model_id = "zai-org/GLM-5:novita"
     
     print(f"🧠 Запрашиваю совет у {model_id}...")
@@ -209,13 +209,10 @@ def get_ai_advice(weather, plant_names, month):
         "Content-Type": "application/json"
     }
     
-    # Объединяем System и User в один понятный промпт
+    # ПРОСТОЙ АНГЛИЙСКИЙ ПРОМПТ ДЛЯ ТЕСТА
     prompt_text = (
-        f"Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. "
-        f"Не пиши про 'теплую воду'. Пиши только суть.\n\n"
-        f"Погода: {weather['temp']}°C, влажность {weather['hum']}%.\n"
-        f"Сезон: {season}.\n"
-        f"Растения: {plants_list}."
+        f"You are a gardener. Give one short advice (max 20 words) for these plants: {plants_list}. "
+        f"Weather: {weather['temp']}C. Reply in English."
     )
 
     payload = {
@@ -226,7 +223,7 @@ def get_ai_advice(weather, plant_names, month):
                 "content": prompt_text
             }
         ],
-        "max_tokens": 80,
+        "max_tokens": 50,
         "temperature": 0.7
     }
 
@@ -235,14 +232,14 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
+            # Debug: print raw data if needed
+            # print(f"DEBUG DATA: {data}")
+            
             try:
                 text = data["choices"][0]["message"]["content"]
                 
-                clean_text = text.strip().replace('*', '').split('\n')[0]
+                clean_text = text.strip().replace('*', '')
                 
-                if len(clean_text) > 160:
-                    clean_text = clean_text[:157] + "..."
-
                 if clean_text:
                     print(f"✅ Совет получен: {clean_text}")
                     return clean_text

@@ -199,8 +199,9 @@ def get_ai_advice(weather, plant_names, month):
     
     url = "https://router.huggingface.co/v1/chat/completions"
     
-    # --- ВОТ ИСПРАВЛЕНИЕ: Qwen 2 (не 2.5) ---
-    # Эта модель поддерживается провайдером Novita
+    # --- РЕШЕНИЕ ---
+    # Используем провайдера :novita (он рабочий)
+    # Используем модель Qwen 2 (версия 2.5 не поддерживается, версия 2 поддерживается)
     model_id = "Qwen/Qwen2-7B-Instruct:novita"
     
     print(f"🧠 Запрашиваю совет у {model_id}...")

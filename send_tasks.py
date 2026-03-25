@@ -197,11 +197,11 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'никого'
     
-    # Используем URL из вашего примера (добавляем /chat/completions)
     url = "https://router.huggingface.co/v1/chat/completions"
     
-    # Используем модель из примера (убрали :hyperbolic для бесплатного доступа)
-    model_id = "meta-llama/Llama-3.2-3B-Instruct"
+    # --- ВОЗВРАЩАЕМСЯ К MISTRAL ---
+    # Эта модель проверена годами, работает быстро и бесплатно.
+    model_id = "mistralai/Mistral-7B-Instruct-v0.3"
     
     print(f"🧠 Запрашиваю совет у {model_id}...")
 
@@ -232,7 +232,6 @@ def get_ai_advice(weather, plant_names, month):
         if resp.status_code == 200:
             data = resp.json()
             try:
-                # Формат ответа OpenAI
                 text = data["choices"][0]["message"]["content"]
                 
                 clean_text = text.strip().replace('*', '').split('\n')[0]
@@ -248,14 +247,8 @@ def get_ai_advice(weather, plant_names, month):
             except (KeyError, IndexError):
                 print(f"⚠️ Неожиданный формат ответа: {data}")
         
-        elif resp.status_code == 403:
-             print(f"❌ Ошибка 403: Нужно принять условия модели.")
-             print(f"   1. Зайдите на HF: https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct")
-             print(f"   2. Нажмите 'Agree and access repository'.")
-        
-        elif resp.status_code == 401:
-            print("❌ Ошибка 401: Неверный токен HF_API_TOKEN.")
-            
+        elif resp.status_code == 503:
+            print("⏳ Модель прогревается... Попробуйте через 20 сек.")
         else:
             print(f"❌ Ошибка HF API: {resp.status_code}")
             print(f"   Ответ: {resp.text[:200]}")

@@ -197,12 +197,12 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'nobody'
     
-    # Используем классический endpoint (не v1/chat/completions)
+    # Используем классический endpoint
     url = "https://router.huggingface.co/hf-inference/models/microsoft/Phi-3-mini-4k-instruct"
     
     print(f"🧠 Запрашиваю совет у microsoft/Phi-3-mini-4k-instruct...")
 
-    # Phi-3 любит четкое форматирование
+    # Исправленный промпт (кавычки проверены)
     prompt = (
         f"<|user|>\n"
         f"You are a gardener. Give ONE short advice (max 20 words) for: {plants_list}. "
@@ -219,7 +219,7 @@ def get_ai_advice(weather, plant_names, month):
         "inputs": prompt,
         "parameters": {
             "max_new_tokens": 50,
-            "return_full_text": False,  # Вернуть только новый текст
+            "return_full_text": False,
             "temperature": 0.7
         }
     }
@@ -229,11 +229,9 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
-            # Классический формат: список словарей [{"generated_text": "..."}]
             if isinstance(data, list) and data:
                 text = data[0].get("generated_text", "")
                 
-                # Чистим текст от лишних тегов
                 clean_text = text.strip().replace('<|end|>', '').replace('*', '')
                 
                 if clean_text:

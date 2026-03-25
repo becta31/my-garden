@@ -197,24 +197,20 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'nobody'
     
-    # Используем классический endpoint
-    url = "https://router.huggingface.co/hf-inference/models/microsoft/Phi-3-mini-4k-instruct"
+    # Zephyr 7B - одна из самых стабильных бесплатных моделей
+    model_id = "HuggingFaceH4/zephyr-7b-beta"
+    url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
     
-    print(f"🧠 Запрашиваю совет у microsoft/Phi-3-mini-4k-instruct...")
+    print(f"🧠 Запрашиваю совет у {model_id}...")
 
-    # Исправленный промпт (кавычки теперь правильно обрамляют всю строку)
+    # Специальный формат промпта для Zephyr (<|system|>, <|user|>, <|assistant|__)
     prompt = (
-        f"adapter\n" # Иногда нужно для Phi-3, но обычно просто текст
-        f"You are a gardener. Give ONE short advice (max 20 words) for: {plants_list}. "
-        f"Weather: {weather['temp']}C. Reply in Russian.<|end|>\n"
-        f"<|assistant|)" # Просто закрываем строку, перенос строки не обязателен здесь
-    )
-
-    # На самом деле для Phi-3 промпт лучше сделать максимально простым:
-    prompt = (
+        f"<|system|>\n"
+        f"You are a gardener. Give ONE short advice (max 20 words) for these plants. Reply in Russian.\n"
+        f"</s>\n"
         f"<|user|>\n"
-        f"You are a gardener. Give ONE short advice (max 20 words) for: {plants_list}. "
-        f"Weather: {weather['temp']}C. Reply in Russian.<|end|>\n"
+        f"Plants: {plants_list}. Weather: {weather['temp']}C.\n"
+        f"</s>\n"
         f"<|assistant|"
     )
 
@@ -226,7 +222,7 @@ def get_ai_advice(weather, plant_names, month):
     payload = {
         "inputs": prompt,
         "parameters": {
-            "max_new_tokens": 50,
+            "max_new_tokens": 60,
             "return_full_text": False,
             "temperature": 0.7
         }
@@ -240,7 +236,7 @@ def get_ai_advice(weather, plant_names, month):
             if isinstance(data, list) and data:
                 text = data[0].get("generated_text", "")
                 
-                clean_text = text.strip().replace('<|end|>', '').replace('*', '')
+                clean_text = text.strip().replace('*', '')
                 
                 if clean_text:
                     print(f"✅ Совет получен: {clean_text}")
@@ -262,23 +258,6 @@ def get_ai_advice(weather, plant_names, month):
 
     except Exception as e:
         print(f"❌ Исключение при запросе к HF: {e}")
-
-    return None
-def weather_comment_fallback(weather, month, delta_temp=None):
-    temp = weather.get("temp", 0)
-    wind = weather.get("wind", 0)
-
-    if delta_temp is not None and abs(delta_temp) >= 8:
-        direction = "потепление" if delta_temp > 0 else "похолодание"
-        return f"Резкое {direction} ({abs(delta_temp):+}°)."
-
-    if wind >= 12:
-        return "Сильный ветер — растения теряют влагу быстрее."
-
-    if month in (3, 4, 5):
-        if temp < 5:
-            return "Холодно. Поливай только тёплой водой."
-        return "Весна! Постепенно увеличивай полив."
 
     return None
 

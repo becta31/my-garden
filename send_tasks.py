@@ -202,12 +202,20 @@ def get_ai_advice(weather, plant_names, month):
     
     print(f"🧠 Запрашиваю совет у microsoft/Phi-3-mini-4k-instruct...")
 
-    # Исправленный промпт (кавычки проверены)
+    # Исправленный промпт (кавычки теперь правильно обрамляют всю строку)
+    prompt = (
+        f"adapter\n" # Иногда нужно для Phi-3, но обычно просто текст
+        f"You are a gardener. Give ONE short advice (max 20 words) for: {plants_list}. "
+        f"Weather: {weather['temp']}C. Reply in Russian.<|end|>\n"
+        f"<|assistant|)" # Просто закрываем строку, перенос строки не обязателен здесь
+    )
+
+    # На самом деле для Phi-3 промпт лучше сделать максимально простым:
     prompt = (
         f"<|user|>\n"
         f"You are a gardener. Give ONE short advice (max 20 words) for: {plants_list}. "
         f"Weather: {weather['temp']}C. Reply in Russian.<|end|>\n"
-        f"<|assistant|">\n"
+        f"<|assistant|"
     )
 
     headers = {
@@ -256,7 +264,6 @@ def get_ai_advice(weather, plant_names, month):
         print(f"❌ Исключение при запросе к HF: {e}")
 
     return None
-
 def weather_comment_fallback(weather, month, delta_temp=None):
     temp = weather.get("temp", 0)
     wind = weather.get("wind", 0)

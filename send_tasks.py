@@ -189,7 +189,6 @@ def feeding_active(plant: dict, month: int) -> bool:
 
 
 def get_ai_advice(weather, plant_names, month):
-    # Ollama использует свой ключ
     api_key = os.getenv("OLLAMA_API_KEY")
     if not api_key:
         print("⚠️ OLLAMA_API_KEY не найден. ИИ отключен.")
@@ -198,11 +197,10 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'nobody'
     
-    # URL для Ollama Cloud (OpenAI-compatible)
-    # Обычно это api.ollama.ai, но проверьте в документации, если изменится
-    url = "https://api.ollama.ai/v1/chat/completions"
+    # ПРАВИЛЬНЫЙ URL
+    url = "https://api.ollama.com/v1/chat/completions"
     
-    model_id = "llama3.2" # Популярная и быстрая модель
+    model_id = "llama3.2"
     
     print(f"🧠 Запрашиваю совет у {model_id} (Ollama Cloud)...")
 
@@ -233,7 +231,6 @@ def get_ai_advice(weather, plant_names, month):
         if resp.status_code == 200:
             data = resp.json()
             try:
-                # Стандартный ответ OpenAI формата
                 text = data["choices"][0]["message"]["content"]
                 
                 clean_text = text.strip().replace('*', '').split('\n')[0]
@@ -258,23 +255,6 @@ def get_ai_advice(weather, plant_names, month):
 
     except Exception as e:
         print(f"❌ Исключение при запросе к Ollama: {e}")
-
-    return None
-def weather_comment_fallback(weather, month, delta_temp=None):
-    temp = weather.get("temp", 0)
-    wind = weather.get("wind", 0)
-
-    if delta_temp is not None and abs(delta_temp) >= 8:
-        direction = "потепление" if delta_temp > 0 else "похолодание"
-        return f"Резкое {direction} ({abs(delta_temp):+}°)."
-
-    if wind >= 12:
-        return "Сильный ветер — растения теряют влагу быстрее."
-
-    if month in (3, 4, 5):
-        if temp < 5:
-            return "Холодно. Поливай только тёплой водой."
-        return "Весна! Постепенно увеличивай полив."
 
     return None
 

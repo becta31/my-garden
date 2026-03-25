@@ -197,30 +197,35 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'никого'
     
-    url = "https://router.huggingface.co/hf-inference/v1/chat/completions"
+    # Используем стабильную модель Qwen1.5 (она точно есть на бесплатном API)
+    model_id = "Qwen/Qwen1.5-7B-Chat"
     
-    # --- ЗАМЕНА МОДЕЛИ ---
-    # Qwen2.5 недоступна, используем стабильную Qwen2
-    model_id = "Qwen/Qwen2-7B-Instruct"
+    # Правильный URL для обычной генерации (не v1/chat/completions)
+    url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
     
     print(f"🧠 Запрашиваю совет у {model_id}...")
 
+    # Ручной шаблон для Qwen (ChatML format)
+    prompt = (
+        f"<|im_start|>system\n"
+        f"Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. "
+        f"Не пиши про 'теплую воду'. Пиши только суть.<|im_end|>\n"
+        f"<|im_start|>user\n"
+        f"Погода: {weather['temp']}°C, влажность {weather['hum']}%.\n"
+        f"Сезон: {season}.\n"
+        f"Растения на поливе: {plants_list}.<|im_end|>\n"
+        f"<|im_start|>assistant\n"
+    )
+
     headers = {"Authorization": f"Bearer {api_key}"}
-    
     payload = {
-        "model": model_id,
-        "messages": [
-            {
-                "role": "system", 
-                "content": "Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. Не пиши про 'теплую воду'. Пиши только суть."
-            },
-            {
-                "role": "user", 
-                "content": f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения на поливе: {plants_list}."
-            }
-        ],
-        "max_tokens": 80,
-        "temperature": 0.7
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 80,
+            "temperature": 0.7,
+            "return_full_text": False,  # Не возвращаем сам промпт
+            "stop": ["<|im_end|>", "\n"] # Останавливаемся на конце ответа
+        }
     }
 
     try:
@@ -228,10 +233,11 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
-            try:
-                text = data["choices"][0]["message"]["content"]
+            # Классический формат ответа: список с generated_text
+            if isinstance(data, list) and data:
+                text = data[0].get("generated_text", "")
                 
-                clean_text = text.strip().replace('*', '').split('\n')[0]
+                clean_text = text.strip().replace('*', '')
                 
                 if len(clean_text) > 160:
                     clean_text = clean_text[:157] + "..."
@@ -241,7 +247,7 @@ def get_ai_advice(weather, plant_names, month):
                     return clean_text
                 else:
                     print("⚠️ ИИ вернул пустой текст.")
-            except (KeyError, IndexError):
+            else:
                 print(f"⚠️ Неожиданный формат ответа: {data}")
         
         elif resp.status_code == 503:

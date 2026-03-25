@@ -197,35 +197,30 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'никого'
     
-    # Используем Qwen 2.5 7B
+    # Используем новую версию API (v1) для совместимости
+    url = "https://router.huggingface.co/hf-inference/v1/chat/completions"
+    
     model_id = "Qwen/Qwen2.5-7B-Instruct"
     
-    # НОВЫЙ АДРЕС (router.huggingface.co)
-    url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
-    
-    print(f"🧠 Запрашиваю совет у {model_id} для: {plants_list}...")
-
-    # Шаблон для Qwen
-    prompt = (
-        f"<|im_start|>system\n"
-        f"Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. "
-        f"Не пиши про 'теплую воду'. Пиши только суть.<|im_end|>\n"
-        f"<|im_start|>user\n"
-        f"Погода: {weather['temp']}°C, влажность {weather['hum']}%.\n"
-        f"Сезон: {season}.\n"
-        f"Растения: {plants_list}.<|im_end|>\n"
-        f"<|im_start|>assistant\n"
-    )
+    print(f"🧠 Запрашиваю совет у {model_id} (v1 API) для: {plants_list}...")
 
     headers = {"Authorization": f"Bearer {api_key}"}
+    
+    # Новый формат	payload - как в OpenAI (система сама добавит нужные теги)
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 80,
-            "temperature": 0.7,
-            "return_full_text": False,
-            "stop": ["<|im_end|>"]
-        }
+        "model": model_id,
+        "messages": [
+            {
+                "role": "system", 
+                "content": "Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. Не пиши про 'теплую воду'. Пиши только суть."
+            },
+            {
+                "role": "user", 
+                "content": f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения на поливе: {plants_list}."
+            }
+        ],
+        "max_tokens": 80,
+        "temperature": 0.7
     }
 
     try:
@@ -233,8 +228,9 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
-            if isinstance(data, list) and data:
-                text = data[0].get("generated_text", "")
+            # Новый формат ответа (choices -> message)
+            try:
+                text = data["choices"][0]["message"]["content"]
                 
                 clean_text = text.strip().replace('*', '').split('\n')[0]
                 
@@ -246,11 +242,11 @@ def get_ai_advice(weather, plant_names, month):
                     return clean_text
                 else:
                     print("⚠️ ИИ вернул пустой текст.")
-            else:
+            except (KeyError, IndexError):
                 print(f"⚠️ Неожиданный формат ответа: {data}")
         
         elif resp.status_code == 503:
-            print("⏳ Модель на HF прогревается... Попробуйте через 20 сек.")
+            print("⏳ Модель прогревается... Попробуйте через 20 сек.")
         else:
             print(f"❌ Ошибка HF API: {resp.status_code}")
             print(f"   Ответ: {resp.text[:200]}")

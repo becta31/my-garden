@@ -191,16 +191,21 @@ def feeding_active(plant: dict, month: int) -> bool:
 def get_ai_advice(weather, plant_names, month):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
+        print("⚠️ GEMINI_API_KEY не найден. ИИ отключен.")
         return None
 
     season = get_season(month)
+    plants_list = ', '.join(plant_names) if plant_names else 'никого'
+    
+    print(f"🧠 Запрашиваю совет у Gemini для: {plants_list}...")
+
     prompt = (
         f"Ты — опытный, но лаконичный агроном-любитель.\n"
         f"Погода сейчас: {weather['temp']}°C, влажность {weather['hum']}%.\n"
         f"Сезон: {season}.\n"
-        f"Сегодня на поливе: {', '.join(plant_names) if plant_names else 'никого'}.\n"
-        f"Дай один короткий, неочевидный совет по уходу за этими растениями в данных условиях. "
-        f"Не пиши банальные вещи. Пиши конкретно и полезно. Не более 200 символов."
+        f"Сегодня на поливе: {plants_list}.\n"
+        f"Дай один короткий, конкретный совет (до 150 символов). "
+        f"Не пиши про 'теплую воду'. Пиши суть."
     )
 
     url = (
@@ -209,7 +214,7 @@ def get_ai_advice(weather, plant_names, month):
     )
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 100}
+        "generationConfig": {"temperature": 0.5, "maxOutputTokens": 100}
     }
 
     try:
@@ -223,9 +228,16 @@ def get_ai_advice(weather, plant_names, month):
                 .get("text")
             )
             if text:
-                return text.strip().replace('*', '')
+                clean_text = text.strip().replace('*', '')
+                print(f"✅ Совет получен: {clean_text}")
+                return clean_text
+            else:
+                print("⚠️ ИИ вернул пустой ответ.")
+        else:
+            print(f"❌ Ошибка API Gemini: {resp.status_code}")
+            print(f"   Ответ сервера: {resp.text[:200]}")
     except Exception as e:
-        print(f"Ошибка Gemini: {e}")
+        print(f"❌ Исключение при запросе к ИИ: {e}")
 
     return None
 

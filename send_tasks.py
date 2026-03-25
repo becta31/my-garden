@@ -197,13 +197,15 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'никого'
     
-    # Используем Qwen 2.5 7B (на русском лучше всех)
+    # Используем Qwen 2.5 7B
     model_id = "Qwen/Qwen2.5-7B-Instruct"
-    url = f"https://api-inference.huggingface.co/models/{model_id}"
+    
+    # НОВЫЙ АДРЕС (router.huggingface.co)
+    url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
     
     print(f"🧠 Запрашиваю совет у {model_id} для: {plants_list}...")
 
-    # Шаблон для Qwen (он любит четкие системные инструкции)
+    # Шаблон для Qwen
     prompt = (
         f"<|im_start|>system\n"
         f"Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. "
@@ -221,8 +223,8 @@ def get_ai_advice(weather, plant_names, month):
         "parameters": {
             "max_new_tokens": 80,
             "temperature": 0.7,
-            "return_full_text": False,  # Чтобы не дублировать промпт
-            "stop": ["<|im_end|>"]      # Остановка в конце ответа
+            "return_full_text": False,
+            "stop": ["<|im_end|>"]
         }
     }
 
@@ -231,14 +233,11 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
-            # HF возвращает список: [{"generated_text": "..."}]
             if isinstance(data, list) and data:
                 text = data[0].get("generated_text", "")
                 
-                # Чистим ответ от лишних тегов и пробелов
                 clean_text = text.strip().replace('*', '').split('\n')[0]
                 
-                # Обрезаем, если ИИ разошелся
                 if len(clean_text) > 160:
                     clean_text = clean_text[:157] + "..."
 
@@ -260,7 +259,6 @@ def get_ai_advice(weather, plant_names, month):
         print(f"❌ Исключение при запросе к HF: {e}")
 
     return None
-
 
 def weather_comment_fallback(weather, month, delta_temp=None):
     temp = weather.get("temp", 0)

@@ -189,53 +189,72 @@ def feeding_active(plant: dict, month: int) -> bool:
 
 
 def get_ai_advice(weather, plant_names, month):
-    # Проверяем наличие библиотеки (на случай, если забудем requirements.txt)
-    try:
-        import ollama
-    except ImportError:
-        print("⚠️ Библиотека 'ollama' не установлена. Добавьте её в requirements.txt")
+    api_key = os.getenv("OLLAMA_API_KEY")
+    if not api_key:
+        print("⚠️ OLLAMA_API_KEY не найден.")
         return None
 
-    # Библиотека сама возьмет ключ из переменной окружения OLLAMA_API_KEY
-    
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'nobody'
     
-    # Используем модель из вашего примера или llama3.2
-    model_id = "llama3.2" 
+    # ПРАВИЛЬНЫЙ URL ИЗ ДОКУМЕНТАЦИИ
+    # Base URL: https://ollama.com/api
+    # Endpoint: /chat
+    url = "https://ollama.com/api/chat"
     
-    print(f"🧠 Запрашиваю совет у {model_id} (Ollama Lib)...")
+    print(f"🧠 Запрашиваю совет у Ollama Cloud...")
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": "llama3.2",  # Или другая модель, например gemma3
+        "messages": [
+            {
+                "role": "system", 
+                "content": "Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. Не пиши про 'теплую воду'. Пиши только суть."
+            },
+            {
+                "role": "user", 
+                "content": f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения: {plants_list}."
+            }
+        ],
+        "stream": False  # Важно: получаем весь ответ сразу, а не по кускам
+    }
 
     try:
-        response = ollama.chat(
-            model=model_id,
-            messages=[
-                {
-                    'role': 'system', 
-                    'content': "Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. Не пиши про 'теплую воду'. Пиши только суть."
-                },
-                {
-                    'role': 'user', 
-                    'content': f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения: {plants_list}."
-                }
-            ]
-        )
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
         
-        text = response['message']['content']
-        
-        clean_text = text.strip().replace('*', '').split('\n')[0]
-        
-        if len(clean_text) > 160:
-            clean_text = clean_text[:157] + "..."
+        if resp.status_code == 200:
+            data = resp.json()
+            # Формат ответа Ollama: {"message": {"role": "assistant", "content": "..."}}
+            try:
+                text = data.get("message", {}).get("content", "")
+                
+                clean_text = text.strip().replace('*', '').split('\n')[0]
+                
+                if len(clean_text) > 160:
+                    clean_text = clean_text[:157] + "..."
 
-        if clean_text:
-            print(f"✅ Совет получен: {clean_text}")
-            return clean_text
+                if clean_text:
+                    print(f"✅ Совет получен: {clean_text}")
+                    return clean_text
+                else:
+                    print("⚠️ ИИ вернул пустой текст.")
+            except Exception:
+                print(f"⚠️ Неожиданный формат ответа: {data}")
+        
+        elif resp.status_code == 401:
+            print("❌ Ошибка 401: Неверный API Key.")
+            
         else:
-            print("⚠️ ИИ вернул пустой текст.")
+            print(f"❌ Ошибка Ollama: {resp.status_code}")
+            print(f"   Ответ: {resp.text[:200]}")
 
     except Exception as e:
-        print(f"❌ Исключение при запросе к Ollama: {e}")
+        print(f"❌ Исключение при запросе: {e}")
 
     return None
 

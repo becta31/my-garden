@@ -197,12 +197,12 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'nobody'
     
-    # ПРАВИЛЬНЫЙ URL ИЗ ДОКУМЕНТАЦИИ
-    # Base URL: https://ollama.com/api
-    # Endpoint: /chat
     url = "https://ollama.com/api/chat"
     
-    print(f"🧠 Запрашиваю совет у Ollama Cloud...")
+    # Используем стабильную модель Llama 3.1
+    model_name = "llama3.1"
+    
+    print(f"🧠 Запрашиваю совет у {model_name}...")
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -210,7 +210,7 @@ def get_ai_advice(weather, plant_names, month):
     }
     
     payload = {
-        "model": "llama3.2",  # Или другая модель, например gemma3
+        "model": model_name,
         "messages": [
             {
                 "role": "system", 
@@ -221,7 +221,7 @@ def get_ai_advice(weather, plant_names, month):
                 "content": f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения: {plants_list}."
             }
         ],
-        "stream": False  # Важно: получаем весь ответ сразу, а не по кускам
+        "stream": False
     }
 
     try:
@@ -229,7 +229,6 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
-            # Формат ответа Ollama: {"message": {"role": "assistant", "content": "..."}}
             try:
                 text = data.get("message", {}).get("content", "")
                 

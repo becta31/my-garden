@@ -197,11 +197,11 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'никого'
     
-    # Новый URL для чат-моделей (OpenAI-compatible)
     url = "https://router.huggingface.co/hf-inference/v1/chat/completions"
     
-    # Попробуем новую Qwen2.5. Если не сработает — код можно поменять на Qwen/Qwen2-7B-Instruct
-    model_id = "Qwen/Qwen2.5-7B-Instruct"
+    # --- ЗАМЕНА МОДЕЛИ ---
+    # Qwen2.5 недоступна, используем стабильную Qwen2
+    model_id = "Qwen/Qwen2-7B-Instruct"
     
     print(f"🧠 Запрашиваю совет у {model_id}...")
 
@@ -243,11 +243,6 @@ def get_ai_advice(weather, plant_names, month):
                     print("⚠️ ИИ вернул пустой текст.")
             except (KeyError, IndexError):
                 print(f"⚠️ Неожиданный формат ответа: {data}")
-        
-        elif resp.status_code == 404:
-            print(f"❌ Модель {model_id} не найдена на сервере.")
-            print("   Скорее всего, она еще не доступна на бесплатном тарифе.")
-            print("   👉 Попробуйте заменить в коде 'Qwen2.5-7B-Instruct' на 'Qwen2-7B-Instruct'")
         
         elif resp.status_code == 503:
             print("⏳ Модель прогревается... Попробуйте через 20 сек.")

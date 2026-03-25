@@ -189,55 +189,75 @@ def feeding_active(plant: dict, month: int) -> bool:
 
 
 def get_ai_advice(weather, plant_names, month):
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("HF_API_TOKEN")
     if not api_key:
-        print("⚠️ GEMINI_API_KEY не найден. ИИ отключен.")
+        print("⚠️ HF_API_TOKEN не найден. ИИ отключен.")
         return None
 
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'никого'
     
-    print(f"🧠 Запрашиваю совет у Gemini для: {plants_list}...")
+    # Используем Qwen 2.5 7B (на русском лучше всех)
+    model_id = "Qwen/Qwen2.5-7B-Instruct"
+    url = f"https://api-inference.huggingface.co/models/{model_id}"
+    
+    print(f"🧠 Запрашиваю совет у {model_id} для: {plants_list}...")
 
+    # Шаблон для Qwen (он любит четкие системные инструкции)
     prompt = (
-        f"Ты — опытный, но лаконичный агроном-любитель.\n"
-        f"Погода сейчас: {weather['temp']}°C, влажность {weather['hum']}%.\n"
+        f"<|im_start|>system\n"
+        f"Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. "
+        f"Не пиши про 'теплую воду'. Пиши только суть.<|im_end|>\n"
+        f"<|im_start|>user\n"
+        f"Погода: {weather['temp']}°C, влажность {weather['hum']}%.\n"
         f"Сезон: {season}.\n"
-        f"Сегодня на поливе: {plants_list}.\n"
-        f"Дай один короткий, конкретный совет (до 150 символов). "
-        f"Не пиши про 'теплую воду'. Пиши суть."
+        f"Растения: {plants_list}.<|im_end|>\n"
+        f"<|im_start|>assistant\n"
     )
 
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-1.5-flash:generateContent?key={api_key}"
-    )
+    headers = {"Authorization": f"Bearer {api_key}"}
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.5, "maxOutputTokens": 100}
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 80,
+            "temperature": 0.7,
+            "return_full_text": False,  # Чтобы не дублировать промпт
+            "stop": ["<|im_end|>"]      # Остановка в конце ответа
+        }
     }
 
     try:
-        resp = requests.post(url, json=payload, timeout=20)
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        
         if resp.status_code == 200:
             data = resp.json()
-            text = (
-                data.get("candidates", [{}])[0]
-                .get("content", {})
-                .get("parts", [{}])[0]
-                .get("text")
-            )
-            if text:
-                clean_text = text.strip().replace('*', '')
-                print(f"✅ Совет получен: {clean_text}")
-                return clean_text
+            # HF возвращает список: [{"generated_text": "..."}]
+            if isinstance(data, list) and data:
+                text = data[0].get("generated_text", "")
+                
+                # Чистим ответ от лишних тегов и пробелов
+                clean_text = text.strip().replace('*', '').split('\n')[0]
+                
+                # Обрезаем, если ИИ разошелся
+                if len(clean_text) > 160:
+                    clean_text = clean_text[:157] + "..."
+
+                if clean_text:
+                    print(f"✅ Совет получен: {clean_text}")
+                    return clean_text
+                else:
+                    print("⚠️ ИИ вернул пустой текст.")
             else:
-                print("⚠️ ИИ вернул пустой ответ.")
+                print(f"⚠️ Неожиданный формат ответа: {data}")
+        
+        elif resp.status_code == 503:
+            print("⏳ Модель на HF прогревается... Попробуйте через 20 сек.")
         else:
-            print(f"❌ Ошибка API Gemini: {resp.status_code}")
-            print(f"   Ответ сервера: {resp.text[:200]}")
+            print(f"❌ Ошибка HF API: {resp.status_code}")
+            print(f"   Ответ: {resp.text[:200]}")
+
     except Exception as e:
-        print(f"❌ Исключение при запросе к ИИ: {e}")
+        print(f"❌ Исключение при запросе к HF: {e}")
 
     return None
 

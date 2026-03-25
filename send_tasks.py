@@ -260,6 +260,23 @@ def get_ai_advice(weather, plant_names, month):
         print(f"❌ Исключение при запросе к Ollama: {e}")
 
     return None
+def weather_comment_fallback(weather, month, delta_temp=None):
+    temp = weather.get("temp", 0)
+    wind = weather.get("wind", 0)
+
+    if delta_temp is not None and abs(delta_temp) >= 8:
+        direction = "потепление" if delta_temp > 0 else "похолодание"
+        return f"Резкое {direction} ({abs(delta_temp):+}°)."
+
+    if wind >= 12:
+        return "Сильный ветер — растения теряют влагу быстрее."
+
+    if month in (3, 4, 5):
+        if temp < 5:
+            return "Холодно. Поливай только тёплой водой."
+        return "Весна! Постепенно увеличивай полив."
+
+    return None
 
 def main():
     check_file_exists(PLANTS_FILE)

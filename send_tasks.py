@@ -189,30 +189,22 @@ def feeding_active(plant: dict, month: int) -> bool:
 
 
 def get_ai_advice(weather, plant_names, month):
-    api_key = os.getenv("HF_API_TOKEN")
+    # Ollama использует свой ключ
+    api_key = os.getenv("OLLAMA_API_KEY")
     if not api_key:
-        print("⚠️ HF_API_TOKEN не найден. ИИ отключен.")
+        print("⚠️ OLLAMA_API_KEY не найден. ИИ отключен.")
         return None
 
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'nobody'
     
-    # Zephyr 7B - одна из самых стабильных бесплатных моделей
-    model_id = "HuggingFaceH4/zephyr-7b-beta"
-    url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
+    # URL для Ollama Cloud (OpenAI-compatible)
+    # Обычно это api.ollama.ai, но проверьте в документации, если изменится
+    url = "https://api.ollama.ai/v1/chat/completions"
     
-    print(f"🧠 Запрашиваю совет у {model_id}...")
-
-    # Специальный формат промпта для Zephyr (<|system|>, <|user|>, <|assistant|__)
-    prompt = (
-        f"<|system|>\n"
-        f"You are a gardener. Give ONE short advice (max 20 words) for these plants. Reply in Russian.\n"
-        f"</s>\n"
-        f"<|user|>\n"
-        f"Plants: {plants_list}. Weather: {weather['temp']}C.\n"
-        f"</s>\n"
-        f"<|assistant|"
-    )
+    model_id = "llama3.2" # Популярная и быстрая модель
+    
+    print(f"🧠 Запрашиваю совет у {model_id} (Ollama Cloud)...")
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -220,12 +212,19 @@ def get_ai_advice(weather, plant_names, month):
     }
     
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 60,
-            "return_full_text": False,
-            "temperature": 0.7
-        }
+        "model": model_id,
+        "messages": [
+            {
+                "role": "system", 
+                "content": "Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. Не пиши про 'теплую воду'. Пиши только суть."
+            },
+            {
+                "role": "user", 
+                "content": f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения: {plants_list}."
+            }
+        ],
+        "max_tokens": 80,
+        "temperature": 0.7
     }
 
     try:
@@ -233,34 +232,34 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
-            if isinstance(data, list) and data:
-                text = data[0].get("generated_text", "")
+            try:
+                # Стандартный ответ OpenAI формата
+                text = data["choices"][0]["message"]["content"]
                 
-                clean_text = text.strip().replace('*', '')
+                clean_text = text.strip().replace('*', '').split('\n')[0]
                 
+                if len(clean_text) > 160:
+                    clean_text = clean_text[:157] + "..."
+
                 if clean_text:
                     print(f"✅ Совет получен: {clean_text}")
                     return clean_text
                 else:
                     print("⚠️ ИИ вернул пустой текст.")
-            else:
+            except (KeyError, IndexError):
                 print(f"⚠️ Неожиданный формат ответа: {data}")
         
-        elif resp.status_code == 503:
-            print("⏳ Модель загружается... Попробуйте через 20 сек.")
-        
         elif resp.status_code == 401:
-            print("❌ Ошибка 401: Неверный токен HF_API_TOKEN.")
+            print("❌ Ошибка 401: Неверный OLLAMA_API_KEY.")
             
         else:
-            print(f"❌ Ошибка HF API: {resp.status_code}")
+            print(f"❌ Ошибка Ollama API: {resp.status_code}")
             print(f"   Ответ: {resp.text[:200]}")
 
     except Exception as e:
-        print(f"❌ Исключение при запросе к HF: {e}")
+        print(f"❌ Исключение при запросе к Ollama: {e}")
 
     return None
-
 
 def main():
     check_file_exists(PLANTS_FILE)

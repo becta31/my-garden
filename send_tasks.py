@@ -199,9 +199,9 @@ def get_ai_advice(weather, plant_names, month):
     
     url = "https://router.huggingface.co/v1/chat/completions"
     
-    # --- ЗАМЕНА НА QWEN 2.5 (через novita) ---
-    # Используем провайдера novita, который у вас прошел проверку (200 OK)
-    model_id = "Qwen/Qwen2.5-7B-Instruct:novita"
+    # --- ВОТ ИСПРАВЛЕНИЕ: Qwen 2 (не 2.5) ---
+    # Эта модель поддерживается провайдером Novita
+    model_id = "Qwen/Qwen2-7B-Instruct:novita"
     
     print(f"🧠 Запрашиваю совет у {model_id}...")
 
@@ -231,9 +231,6 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
-            # Добавим отладку: если текст пустой, посмотрим, что пришло
-            # print(f"DEBUG RAW DATA: {data}") 
-            
             try:
                 text = data["choices"][0]["message"]["content"]
                 
@@ -246,7 +243,7 @@ def get_ai_advice(weather, plant_names, month):
                     print(f"✅ Совет получен: {clean_text}")
                     return clean_text
                 else:
-                    print("⚠️ ИИ вернул пустой текст (попробуйте модель Qwen).")
+                    print("⚠️ ИИ вернул пустой текст.")
             except (KeyError, IndexError):
                 print(f"⚠️ Неожиданный формат ответа: {data}")
         

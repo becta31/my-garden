@@ -197,21 +197,19 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'никого'
     
-    # URL из официальной документации (как на скриншоте, но без v1 в конце, 
-    # так как мы делаем POST запрос сразу в chat/completions)
-    url = "https://router.huggingface.co/hf-inference/v1/chat/completions"
+    # Используем URL из вашего примера (добавляем /chat/completions)
+    url = "https://router.huggingface.co/v1/chat/completions"
     
-    # Используем Qwen2 (Qwen2.5 на бесплатном API пока недоступна)
-    model_id = "Qwen/Qwen2-7B-Instruct"
+    # Используем модель из примера (убрали :hyperbolic для бесплатного доступа)
+    model_id = "meta-llama/Llama-3.2-3B-Instruct"
     
-    print(f"🧠 Запрашиваю совет у {model_id} (OpenAI mode)...")
+    print(f"🧠 Запрашиваю совет у {model_id}...")
 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     
-    # Структура запроса как на скриншоте (messages)
     payload = {
         "model": model_id,
         "messages": [
@@ -234,7 +232,7 @@ def get_ai_advice(weather, plant_names, month):
         if resp.status_code == 200:
             data = resp.json()
             try:
-                # Ответ приходит в формате OpenAI: choices[0].message.content
+                # Формат ответа OpenAI
                 text = data["choices"][0]["message"]["content"]
                 
                 clean_text = text.strip().replace('*', '').split('\n')[0]
@@ -250,12 +248,14 @@ def get_ai_advice(weather, plant_names, month):
             except (KeyError, IndexError):
                 print(f"⚠️ Неожиданный формат ответа: {data}")
         
-        elif resp.status_code == 404:
-            print(f"❌ Модель {model_id} не найдена.")
-            print("   Попробуйте заменить на 'meta-llama/Llama-3.2-3B-Instruct'")
+        elif resp.status_code == 403:
+             print(f"❌ Ошибка 403: Нужно принять условия модели.")
+             print(f"   1. Зайдите на HF: https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct")
+             print(f"   2. Нажмите 'Agree and access repository'.")
         
-        elif resp.status_code == 503:
-            print("⏳ Модель прогревается... Попробуйте через 20 сек.")
+        elif resp.status_code == 401:
+            print("❌ Ошибка 401: Неверный токен HF_API_TOKEN.")
+            
         else:
             print(f"❌ Ошибка HF API: {resp.status_code}")
             print(f"   Ответ: {resp.text[:200]}")

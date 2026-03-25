@@ -197,35 +197,35 @@ def get_ai_advice(weather, plant_names, month):
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'никого'
     
-    # Используем стабильную модель Qwen1.5 (она точно есть на бесплатном API)
-    model_id = "Qwen/Qwen1.5-7B-Chat"
+    # URL из официальной документации (как на скриншоте, но без v1 в конце, 
+    # так как мы делаем POST запрос сразу в chat/completions)
+    url = "https://router.huggingface.co/hf-inference/v1/chat/completions"
     
-    # Правильный URL для обычной генерации (не v1/chat/completions)
-    url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
+    # Используем Qwen2 (Qwen2.5 на бесплатном API пока недоступна)
+    model_id = "Qwen/Qwen2-7B-Instruct"
     
-    print(f"🧠 Запрашиваю совет у {model_id}...")
+    print(f"🧠 Запрашиваю совет у {model_id} (OpenAI mode)...")
 
-    # Ручной шаблон для Qwen (ChatML format)
-    prompt = (
-        f"<|im_start|>system\n"
-        f"Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. "
-        f"Не пиши про 'теплую воду'. Пиши только суть.<|im_end|>\n"
-        f"<|im_start|>user\n"
-        f"Погода: {weather['temp']}°C, влажность {weather['hum']}%.\n"
-        f"Сезон: {season}.\n"
-        f"Растения на поливе: {plants_list}.<|im_end|>\n"
-        f"<|im_start|>assistant\n"
-    )
-
-    headers = {"Authorization": f"Bearer {api_key}"}
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    # Структура запроса как на скриншоте (messages)
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 80,
-            "temperature": 0.7,
-            "return_full_text": False,  # Не возвращаем сам промпт
-            "stop": ["<|im_end|>", "\n"] # Останавливаемся на конце ответа
-        }
+        "model": model_id,
+        "messages": [
+            {
+                "role": "system", 
+                "content": "Ты — опытный агроном. Дай ОДИН короткий совет (до 150 символов) на русском. Не пиши про 'теплую воду'. Пиши только суть."
+            },
+            {
+                "role": "user", 
+                "content": f"Погода: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения: {plants_list}."
+            }
+        ],
+        "max_tokens": 80,
+        "temperature": 0.7
     }
 
     try:
@@ -233,11 +233,11 @@ def get_ai_advice(weather, plant_names, month):
         
         if resp.status_code == 200:
             data = resp.json()
-            # Классический формат ответа: список с generated_text
-            if isinstance(data, list) and data:
-                text = data[0].get("generated_text", "")
+            try:
+                # Ответ приходит в формате OpenAI: choices[0].message.content
+                text = data["choices"][0]["message"]["content"]
                 
-                clean_text = text.strip().replace('*', '')
+                clean_text = text.strip().replace('*', '').split('\n')[0]
                 
                 if len(clean_text) > 160:
                     clean_text = clean_text[:157] + "..."
@@ -247,8 +247,12 @@ def get_ai_advice(weather, plant_names, month):
                     return clean_text
                 else:
                     print("⚠️ ИИ вернул пустой текст.")
-            else:
+            except (KeyError, IndexError):
                 print(f"⚠️ Неожиданный формат ответа: {data}")
+        
+        elif resp.status_code == 404:
+            print(f"❌ Модель {model_id} не найдена.")
+            print("   Попробуйте заменить на 'meta-llama/Llama-3.2-3B-Instruct'")
         
         elif resp.status_code == 503:
             print("⏳ Модель прогревается... Попробуйте через 20 сек.")

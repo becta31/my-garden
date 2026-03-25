@@ -1,2 +1,2 @@
 requests
-ollama
+cerebras-cloud-sdk

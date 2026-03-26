@@ -96,3 +96,7 @@
 Откройте вкладку Actions → выберите последний запуск → посмотрите вывод шага `Run script`.
 
 # GPG Verification Test - 2026
+
+## Security
+- Commits are GPG-verified.
+- Push is handled via SSH.

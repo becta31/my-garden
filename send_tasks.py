@@ -11,6 +11,8 @@ LAST_WEATHER_FILE = "last_weather.json"
 HISTORY_FILE = "history.json"
 FEED_HISTORY_FILE = "feed_history.json"
 PLANTS_FILE = "plants.json"
+VALID_STAGES = {"foliage", "bloom", "dormant", "recover", "покой", "восстановление"}
+VALID_CONDITIONS = {"buds", "flower_spike", "active_growth"}
 
 
 def md_escape(text) -> str:
@@ -89,18 +91,117 @@ def save_feed_history(feed_history):
     save_json_file(FEED_HISTORY_FILE, feed_history)
 
 
+def validate_feed(plant_name: str, feed: dict, index: int):
+    if not isinstance(feed, dict):
+        raise ValueError(f"{plant_name}: feeds[{index}] должен быть объектом")
+
+    feed_id = feed.get("id")
+    if not isinstance(feed_id, str) or not feed_id.strip():
+        raise ValueError(f"{plant_name}: feeds[{index}].id обязателен и должен быть строкой")
+
+    feed_name = feed.get("name")
+    if not isinstance(feed_name, str) or not feed_name.strip():
+        raise ValueError(f"{plant_name}: feeds[{index}].name обязателен и должен быть строкой")
+
+    interval_days = feed.get("intervalDays")
+    if not isinstance(interval_days, int) or interval_days <= 0:
+        raise ValueError(f"{plant_name}: feeds[{index}].intervalDays должен быть целым числом > 0")
+
+    months = feed.get("months", [])
+    if months is not None:
+        if not isinstance(months, list):
+            raise ValueError(f"{plant_name}: feeds[{index}].months должен быть списком")
+        for month in months:
+            if not isinstance(month, int) or month < 1 or month > 12:
+                raise ValueError(f"{plant_name}: feeds[{index}].months содержит недопустимый месяц {month}")
+
+    only_stages = feed.get("onlyStages", [])
+    if only_stages is not None:
+        if not isinstance(only_stages, list):
+            raise ValueError(f"{plant_name}: feeds[{index}].onlyStages должен быть списком")
+        for stage in only_stages:
+            if not isinstance(stage, str) or not stage.strip():
+                raise ValueError(f"{plant_name}: feeds[{index}].onlyStages содержит некорректное значение")
+
+    conditions = feed.get("conditions", [])
+    if conditions is not None:
+        if not isinstance(conditions, list):
+            raise ValueError(f"{plant_name}: feeds[{index}].conditions должен быть списком")
+        for cond in conditions:
+            if not isinstance(cond, str) or not cond.strip():
+                raise ValueError(f"{plant_name}: feeds[{index}].conditions содержит некорректное значение")
+            if cond.strip().lower() not in VALID_CONDITIONS:
+                raise ValueError(f"{plant_name}: feeds[{index}].conditions содержит неизвестное условие '{cond}'")
+
+
+def validate_plant(plant: dict, index: int):
+    if not isinstance(plant, dict):
+        raise ValueError(f"plants[{index}] должен быть объектом")
+
+    plant_id = plant.get("id")
+    if not isinstance(plant_id, str) or not plant_id.strip():
+        raise ValueError(f"plants[{index}].id обязателен и должен быть строкой")
+
+    name = plant.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError(f"plants[{index}].name обязателен и должен быть строкой")
+
+    water_freq = plant.get("waterFreq")
+    if not isinstance(water_freq, int) or water_freq <= 0:
+        raise ValueError(f"{name}: waterFreq должен быть целым числом > 0")
+
+    stage = plant.get("stage")
+    if not isinstance(stage, str) or not stage.strip():
+        raise ValueError(f"{name}: stage обязателен и должен быть строкой")
+    if stage.strip().lower() not in VALID_STAGES:
+        raise ValueError(f"{name}: неизвестная стадия '{stage}'")
+
+    flags = plant.get("flags", {})
+    if flags is not None and not isinstance(flags, dict):
+        raise ValueError(f"{name}: flags должен быть объектом")
+
+    feeds = plant.get("feeds", [])
+    if feeds is None:
+        feeds = []
+    if not isinstance(feeds, list):
+        raise ValueError(f"{name}: feeds должен быть списком")
+
+    seen_feed_ids = set()
+    for feed_index, feed in enumerate(feeds):
+        validate_feed(name, feed, feed_index)
+        feed_id = feed.get("id", "").strip().lower()
+        if feed_id in seen_feed_ids:
+            raise ValueError(f"{name}: дублирующийся id подкормки '{feed.get('id')}'")
+        seen_feed_ids.add(feed_id)
+
+
+def validate_plants(plants):
+    if not isinstance(plants, list):
+        raise ValueError("plants.json должен содержать список растений")
+
+    seen_ids = set()
+    for index, plant in enumerate(plants):
+        validate_plant(plant, index)
+        plant_id = plant["id"].strip().lower()
+        if plant_id in seen_ids:
+            raise ValueError(f"Дублирующийся id растения '{plant['id']}'")
+        seen_ids.add(plant_id)
+
+
 def load_plants():
     try:
         with open(PLANTS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
+            plants = data
+        elif isinstance(data, dict):
             plants = data.get("plants", [])
             if not plants:
                 print("WARNING: plants.json — словарь без ключа 'plants'")
-            return plants
-        return []
+        else:
+            plants = []
+        validate_plants(plants)
+        return plants
     except Exception as e:
         print(f"ERROR: plants.json не загружен — {e}")
         return []

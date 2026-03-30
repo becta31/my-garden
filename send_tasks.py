@@ -9,6 +9,7 @@ from storage import (
     save_last_temp,
 )
 from rules import build_plant_block
+from ai_client import get_ai_comment
 
 from datetime import datetime, timezone
 import json
@@ -214,6 +215,21 @@ def build_weather_line(weather):
     return f"🌡 {md_escape(str(weather['temp']))}°C \\| 💧 {md_escape(str(weather['hum']))}%\n"
 
 
+def build_ai_prompt(weather, month, delta_temp, plants_count):
+    parts = [
+        f"Месяц: {month}",
+        f"Температура: {weather.get('temp')}",
+        f"Влажность: {weather.get('hum')}",
+        f"Ветер: {weather.get('wind')}",
+        f"Описание погоды: {weather.get('desc')}",
+        f"Количество растений в сегодняшнем напоминании: {plants_count}",
+    ]
+    if delta_temp is not None:
+        parts.append(f"Изменение температуры к прошлому запуску: {delta_temp:+}°C")
+    parts.append("Дай короткий практический совет по поливу/уходу для домашнего сада на сегодня.")
+    return "\n".join(parts)
+
+
 def main():
     check_file_exists(PLANTS_FILE)
 
@@ -241,10 +257,6 @@ def main():
     text_parts = [f"🌿 *ПЛАН САДА — {md_escape(today_str)}*\n"]
     text_parts.append(build_weather_line(weather))
 
-    comment = weather_comment_fallback(weather, now_utc.month, delta_temp)
-    if comment:
-        text_parts.append(f"🤖 _{md_escape(comment)}_\n\n")
-
     plants_to_remind = []
     due_feeds_to_mark = []
 
@@ -266,6 +278,13 @@ def main():
         for feed_id in due_feeds:
             if feed_id:
                 due_feeds_to_mark.append((plant_id, feed_id))
+
+    ai_comment = get_ai_comment(
+        build_ai_prompt(weather, now_utc.month, delta_temp, len(plants_to_remind))
+    )
+    comment = ai_comment or weather_comment_fallback(weather, now_utc.month, delta_temp)
+    if comment:
+        text_parts.insert(2, f"🤖 _{md_escape(comment)}_\n\n")
 
     if not plants_to_remind:
         text_parts.append("✅ Полив никому не требуется\\. Отдыхаем\\!")

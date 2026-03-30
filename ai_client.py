@@ -21,7 +21,7 @@ def get_ai_comment(prompt: str):
                     "content": prompt,
                 },
             ],
-            model="gpt-oss-120b",
+            model="llama3.1-8b",
         )
 
         choices = getattr(chat_completion, "choices", None)

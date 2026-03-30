@@ -2,7 +2,7 @@ name: Garden Reminder
 
 on:
   schedule:
-    - cron: '0 6 * * *' # Ежедневно в 06:00 UTC
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 jobs:
@@ -12,41 +12,36 @@ jobs:
       contents: write
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-    - name: Install dependencies
-      run: |
+      - name: Install dependencies
+        run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-    - name: Install dependencies
-      run: pip install requests
+      - name: Run Garden Bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          CITY_NAME: ${{ secrets.CITY_NAME }}
+        run: python send_tasks.py
 
-    - name: Run Garden Bot
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
-        CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
-        OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-        HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
-        CITY_NAME: ${{ secrets.CITY_NAME }}
-      run: python send_tasks.py
-
-    - name: Commit and push changes
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add history.json last_weather.json
-        if ! git diff --staged --quiet; then
-          git commit -m "Update history [skip ci]"
-          git push
-        else
-          echo "No changes to commit"
-        fi
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add history.json last_weather.json
+          if ! git diff --staged --quiet; then
+            git commit -m "Update garden state [skip ci]"
+            git push
+          else
+            echo "No changes to commit"
+          fi

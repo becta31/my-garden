@@ -37,7 +37,7 @@ def send_to_telegram(text: str):
         if response.status_code == 200:
             print("✅ Сообщение отправлено!")
             return True
-        print(f"❌ Ошибка Telegram: {response.text[:300]}")
+        print(f"❌ Ошибка Telegram: {response.text[:500]}")
         return False
     except Exception as e:
         print(f"❌ Исключение при отправке: {e}")
@@ -218,6 +218,39 @@ def feeding_active(plant: dict, month: int) -> bool:
     return month in allowed
 
 
+def normalize_ai_text(text: str) -> str | None:
+    if not text:
+        return None
+
+    clean = text.strip().replace("*", "")
+    clean = clean.replace("—", "-")
+    clean = clean.split("\n")[0].strip()
+
+    bad_prefixes = [
+        "при таких условиях советую:",
+        "совет:",
+        "рекомендация:",
+        "для комнатных растений",
+    ]
+
+    lowered = clean.lower()
+    if lowered in bad_prefixes:
+        return None
+
+    for prefix in bad_prefixes:
+        if lowered.startswith(prefix):
+            clean = clean[len(prefix):].strip(" :-")
+            break
+
+    if len(clean) < 12:
+        return None
+
+    if len(clean) > 140:
+        clean = clean[:137].rstrip() + "..."
+
+    return clean or None
+
+
 def get_ai_advice(weather, plant_names, month):
     try:
         from cerebras.cloud.sdk import Cerebras
@@ -234,7 +267,7 @@ def get_ai_advice(weather, plant_names, month):
         return None
 
     season = get_season(month)
-    plants_list = ', '.join(plant_names) if plant_names else 'nobody'
+    plants_list = ", ".join(plant_names) if plant_names else "растения"
 
     print("🧠 Запрашиваю совет у Cerebras (Llama 3.1)...")
 
@@ -246,36 +279,35 @@ def get_ai_advice(weather, plant_names, month):
                 {
                     "role": "system",
                     "content": (
-                        "Ты — профессиональный агроном. Твоя задача — дать ОДИН короткий совет "
-                        "(до 150 символов) на русском языке для КОМНАТНЫХ растений. "
-                        "Учитывай погоду на улице (холодный подоконник, сквозняки, яркость солнца). "
-                        "Пиши просто."
+                        "Ты профессиональный агроном по комнатным растениям. "
+                        "Дай один короткий практический совет на русском языке. "
+                        "Строго 1 предложение, без вступлений, без слов 'совет' и 'рекомендую', "
+                        "без списков, без двоеточий. "
+                        "Максимум 140 символов."
                     )
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Погода на улице: {weather['temp']}°C, влажность {weather['hum']}%. "
-                        f"Сезон: {season}. Растения на поливе: {plants_list}."
+                        f"Погода: {weather['temp']}°C, влажность {weather['hum']}%, "
+                        f"сезон: {season}, растения: {plants_list}."
                     )
                 }
             ],
             model="llama3.1-8b",
-            max_completion_tokens=100,
-            temperature=0.5,
+            max_completion_tokens=80,
+            temperature=0.4,
             stream=False
         )
 
         text = completion.choices[0].message.content
-        clean_text = text.strip().replace('*', '').split('\n')[0]
-
-        if len(clean_text) > 160:
-            clean_text = clean_text[:157] + "..."
+        clean_text = normalize_ai_text(text)
 
         if clean_text:
             print(f"✅ Совет получен: {clean_text}")
             return clean_text
-        print("⚠️ ИИ вернул пустой текст.")
+
+        print("⚠️ ИИ вернул слабый или пустой совет.")
     except Exception as e:
         print(f"❌ Исключение при запросе к Cerebras: {e}")
 
@@ -298,8 +330,8 @@ def weather_comment_fallback(weather, month, delta_temp=None):
 
     if month in (3, 4, 5):
         if temp < 5:
-            return "Холодно. Поливай только тёплой водой."
-        return "Весна! Постепенно увеличивай полив."
+            return "Холодно — поливай только тёплой водой."
+        return "Весна — постепенно увеличивай полив."
 
     return None
 
@@ -331,7 +363,7 @@ def main():
 
     now_utc = datetime.now(timezone.utc)
     month = now_utc.month
-    today_str = now_utc.strftime('%d.%m')
+    today_str = now_utc.strftime("%d.%m")
 
     text_parts = [f"🌿 *ПЛАН САДА — {md_escape(today_str)}*\n"]
     text_parts.append(build_weather_line(weather))

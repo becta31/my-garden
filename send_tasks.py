@@ -275,8 +275,7 @@ def get_ai_advice(weather, plant_names, month):
         if clean_text:
             print(f"✅ Совет получен: {clean_text}")
             return clean_text
-        else:
-            print("⚠️ ИИ вернул пустой текст.")
+        print("⚠️ ИИ вернул пустой текст.")
     except Exception as e:
         print(f"❌ Исключение при запросе к Cerebras: {e}")
 
@@ -307,8 +306,8 @@ def weather_comment_fallback(weather, month, delta_temp=None):
 
 def build_weather_line(weather):
     if not weather.get("available"):
-        return "🌡 Погода: нет данных\n"
-    return f"🌡 {weather['temp']}°C | 💧 {weather['hum']}%\n"
+        return f"🌡 {md_escape('Погода: нет данных')}\n"
+    return f"🌡 {md_escape(str(weather['temp']))}°C \\| 💧 {md_escape(str(weather['hum']))}%\n"
 
 
 def main():

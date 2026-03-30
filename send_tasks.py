@@ -46,7 +46,7 @@ def send_to_telegram(text: str):
 
 def check_file_exists(filepath):
     if not os.path.exists(filepath):
-        send_to_telegram(f"⚠️ *Ошибка*\nФайл `{filepath}` не найден\\.")
+        print(f"ERROR: Файл не найден: {filepath}")
         sys.exit(1)
 
 
@@ -64,7 +64,7 @@ def load_history():
             fixed = {}
             for item in data:
                 if isinstance(item, dict) and "plant_id" in item:
-                    fixed[item["plant_id"]] = {"last_watered": item.get("ts")}
+                    fixed[item["plant_id"]] = {"last_reminded": item.get("ts")}
             return fixed
         return {}
     except Exception as e:
@@ -80,9 +80,15 @@ def save_history(history):
         print(f"Ошибка сохранения history.json: {e}")
 
 
-def days_since_last_watering(plant_id: str, history: dict) -> int:
+def get_last_event_ts(entry: dict):
+    if not isinstance(entry, dict):
+        return None
+    return entry.get("last_reminded") or entry.get("last_watered")
+
+
+def days_since_last_reminder(plant_id: str, history: dict) -> int:
     entry = history.get(plant_id, {})
-    last = entry.get("last_watered")
+    last = get_last_event_ts(entry)
     if not last:
         return 999
     try:
@@ -123,6 +129,8 @@ def load_last_temp():
 
 
 def save_last_temp(temp):
+    if temp is None:
+        return
     try:
         with open(LAST_WEATHER_FILE, "w", encoding="utf-8") as f:
             json.dump(
@@ -130,32 +138,54 @@ def save_last_temp(temp):
                 f,
                 ensure_ascii=False
             )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Ошибка сохранения last_weather.json: {e}")
 
 
 def get_weather():
     api_key = os.getenv("OPENWEATHER_API_KEY", "").strip()
     city = os.getenv("CITY_NAME", "Moscow").strip() or "Moscow"
+
     if not api_key:
-        return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
+        return {
+            "available": False,
+            "temp": None,
+            "hum": None,
+            "desc": "нет данных",
+            "wind": None,
+            "city": city,
+        }
+
     try:
         url = (
             f"https://api.openweathermap.org/data/2.5/weather"
             f"?q={city}&appid={api_key}&units=metric&lang=ru"
         )
-        res = requests.get(url, timeout=10).json()
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        res = response.json()
+
         if not isinstance(res, dict):
-            return {"temp": 0, "hum": 50, "desc": "ошибка API", "wind": 0}
+            raise ValueError("Некорректный ответ API")
+
         return {
+            "available": True,
             "temp": round(res.get("main", {}).get("temp", 0)),
             "hum": int(res.get("main", {}).get("humidity", 0)),
             "desc": res.get("weather", [{}])[0].get("description", "нет данных"),
             "wind": float(res.get("wind", {}).get("speed", 0)),
+            "city": city,
         }
     except Exception as e:
         print(f"Ошибка погоды: {e}")
-        return {"temp": 0, "hum": 50, "desc": "нет данных", "wind": 0}
+        return {
+            "available": False,
+            "temp": None,
+            "hum": None,
+            "desc": "нет данных",
+            "wind": None,
+            "city": city,
+        }
 
 
 def get_season(month: int) -> str:
@@ -189,7 +219,6 @@ def feeding_active(plant: dict, month: int) -> bool:
 
 
 def get_ai_advice(weather, plant_names, month):
-    # Проверяем наличие библиотеки
     try:
         from cerebras.cloud.sdk import Cerebras
     except ImportError:
@@ -201,10 +230,13 @@ def get_ai_advice(weather, plant_names, month):
         print("⚠️ CEREBRAS_API_KEY не найден.")
         return None
 
+    if not weather.get("available"):
+        return None
+
     season = get_season(month)
     plants_list = ', '.join(plant_names) if plant_names else 'nobody'
-    
-    print(f"🧠 Запрашиваю совет у Cerebras (Llama 3.1)...")
+
+    print("🧠 Запрашиваю совет у Cerebras (Llama 3.1)...")
 
     try:
         client = Cerebras(api_key=api_key)
@@ -212,12 +244,20 @@ def get_ai_advice(weather, plant_names, month):
         completion = client.chat.completions.create(
             messages=[
                 {
-                    "role": "system", 
-                    "content": "Ты — профессиональный агроном. Твоя задача — дать ОДИН короткий совет (до 150 символов) на русском языке для КОМНАТНЫХ растений. Учитывай погоду на улице (холодный подоконник, сквозняки, яркость солнца). Пиши просто."
+                    "role": "system",
+                    "content": (
+                        "Ты — профессиональный агроном. Твоя задача — дать ОДИН короткий совет "
+                        "(до 150 символов) на русском языке для КОМНАТНЫХ растений. "
+                        "Учитывай погоду на улице (холодный подоконник, сквозняки, яркость солнца). "
+                        "Пиши просто."
+                    )
                 },
                 {
-                    "role": "user", 
-                    "content": f"Погода на улице: {weather['temp']}°C, влажность {weather['hum']}%. Сезон: {season}. Растения на поливе: {plants_list}."
+                    "role": "user",
+                    "content": (
+                        f"Погода на улице: {weather['temp']}°C, влажность {weather['hum']}%. "
+                        f"Сезон: {season}. Растения на поливе: {plants_list}."
+                    )
                 }
             ],
             model="llama3.1-8b",
@@ -227,9 +267,8 @@ def get_ai_advice(weather, plant_names, month):
         )
 
         text = completion.choices[0].message.content
-        
         clean_text = text.strip().replace('*', '').split('\n')[0]
-        
+
         if len(clean_text) > 160:
             clean_text = clean_text[:157] + "..."
 
@@ -238,19 +277,22 @@ def get_ai_advice(weather, plant_names, month):
             return clean_text
         else:
             print("⚠️ ИИ вернул пустой текст.")
-
     except Exception as e:
         print(f"❌ Исключение при запросе к Cerebras: {e}")
 
     return None
 
+
 def weather_comment_fallback(weather, month, delta_temp=None):
+    if not weather.get("available"):
+        return "Погода недоступна — ориентируйся на сухость грунта и состояние листьев."
+
     temp = weather.get("temp", 0)
     wind = weather.get("wind", 0)
 
     if delta_temp is not None and abs(delta_temp) >= 8:
         direction = "потепление" if delta_temp > 0 else "похолодание"
-        return f"Резкое {direction} ({abs(delta_temp):+}°)."
+        return f"Резкое {direction} ({delta_temp:+}°C)."
 
     if wind >= 12:
         return "Сильный ветер — растения теряют влагу быстрее."
@@ -261,6 +303,13 @@ def weather_comment_fallback(weather, month, delta_temp=None):
         return "Весна! Постепенно увеличивай полив."
 
     return None
+
+
+def build_weather_line(weather):
+    if not weather.get("available"):
+        return "🌡 Погода: нет данных\n"
+    return f"🌡 {weather['temp']}°C | 💧 {weather['hum']}%\n"
+
 
 def main():
     check_file_exists(PLANTS_FILE)
@@ -273,18 +322,23 @@ def main():
     history = load_history()
     weather = get_weather()
     last_temp = load_last_temp()
-    delta_temp = (weather["temp"] - last_temp) if last_temp is not None else None
-    save_last_temp(weather["temp"])
+
+    current_temp = weather.get("temp")
+    delta_temp = None
+    if current_temp is not None and last_temp is not None:
+        delta_temp = current_temp - last_temp
+
+    save_last_temp(current_temp)
 
     now_utc = datetime.now(timezone.utc)
     month = now_utc.month
     today_str = now_utc.strftime('%d.%m')
 
     text_parts = [f"🌿 *ПЛАН САДА — {md_escape(today_str)}*\n"]
-    text_parts.append(f"🌡 {weather['temp']}°C \\| 💧 {weather['hum']}%\n")
+    text_parts.append(build_weather_line(weather))
 
-    plants_to_water = []
-    plants_to_water_names = []
+    plants_to_remind = []
+    plants_to_remind_names = []
 
     for p in plants:
         if not isinstance(p, dict):
@@ -294,11 +348,11 @@ def main():
         water_freq = p.get("waterFreq", 7)
         name = p.get("name", "Без имени")
 
-        if days_since_last_watering(plant_id, history) < water_freq:
+        if days_since_last_reminder(plant_id, history) < water_freq:
             continue
 
-        plants_to_water.append(plant_id)
-        plants_to_water_names.append(name)
+        plants_to_remind.append(plant_id)
+        plants_to_remind_names.append(name)
 
         feed_short = p.get("feedShort", "")
         stage = str(p.get("stage", "")).strip().lower()
@@ -318,8 +372,8 @@ def main():
 
         text_parts.append(line + "\n")
 
-    if plants_to_water:
-        tip = get_ai_advice(weather, plants_to_water_names, month)
+    if plants_to_remind:
+        tip = get_ai_advice(weather, plants_to_remind_names, month)
         if tip:
             text_parts.insert(2, f"🧠 _{md_escape(tip)}_\n")
         else:
@@ -329,18 +383,20 @@ def main():
     else:
         text_parts.append("✅ Полив никому не требуется\\. Отдыхаем\\!")
 
-    # История сохраняется ДО отправки — не теряется при сбое Telegram
-    now_iso = now_utc.isoformat()
-    for pid in plants_to_water:
-        if pid not in history:
-            history[pid] = {}
-        history[pid]["last_watered"] = now_iso
-    save_history(history)
+    message = "".join(text_parts)
 
-    if send_to_telegram("".join(text_parts)):
-        print(f"✅ Готово. Обновлено растений: {len(plants_to_water)}.")
+    if send_to_telegram(message):
+        now_iso = now_utc.isoformat()
+        for pid in plants_to_remind:
+            if pid not in history or not isinstance(history[pid], dict):
+                history[pid] = {}
+            history[pid]["last_reminded"] = now_iso
+            history[pid].pop("last_watered", None)
+
+        save_history(history)
+        print(f"✅ Готово. Обновлено растений: {len(plants_to_remind)}.")
     else:
-        print("❌ Сообщение не отправлено, но история уже сохранена.")
+        print("❌ Сообщение не отправлено. История не обновлялась.")
 
 
 if __name__ == "__main__":

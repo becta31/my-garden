@@ -25,12 +25,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Ensure state files exist
+        run: |
+          test -f history.json || echo "{}" > history.json
+          test -f feed_history.json || echo "{}" > feed_history.json
+          test -f last_weather.json || echo "{\"temp\": 0, \"saved_at\": null}" > last_weather.json
+
       - name: Run Garden Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
-          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           CITY_NAME: ${{ secrets.CITY_NAME }}
         run: python send_tasks.py
 
@@ -38,7 +43,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add history.json last_weather.json
+          git add history.json feed_history.json last_weather.json
           if ! git diff --staged --quiet; then
             git commit -m "Update garden state [skip ci]"
             git push

@@ -6,14 +6,31 @@
       "category": "fruit",
       "location": "Окно (Оптимально СВ)",
       "waterFreq": 5,
-      "feedMonths": [3, 4, 5, 6, 7, 8, 9, 10],
       "stage": "foliage",
-      "feedShort": "Осмокот (грунт) 1 раз в марте. Янтарка раз в месяц.",
-      "feedNote": "Осмокот — это гранулы долгого действия, закапываются в грунт (хватает на полгода). Янтарка — это не еда, а витамины для иммунитета.",
-      "warning": "Осторожно со сквозняками у холодного стекла.",
-      "toxicity": false,
-      "light": "юго-восток или лампа",
-      "humidityPref": "средняя"
+      "flags": {
+        "active_growth": true
+      },
+      "feeds": [
+        {
+          "id": "osmocote",
+          "name": "Осмокот",
+          "dose": "1 внесение в грунт",
+          "intervalDays": 180,
+          "months": [3],
+          "onlyStages": ["foliage"],
+          "note": "Гранулы долгого действия"
+        },
+        {
+          "id": "succinic",
+          "name": "Янтарка",
+          "dose": "1/1 мягкая доза",
+          "intervalDays": 30,
+          "months": [3, 4, 5, 6, 7, 8, 9, 10],
+          "onlyStages": ["foliage"],
+          "conditions": ["active_growth"],
+          "note": "Поддержка иммунитета"
+        }
+      ]
     },
     {
       "id": "adenium-young",
@@ -21,14 +38,21 @@
       "category": "adenium",
       "location": "Юго-Запад (Полка B + Лампа)",
       "waterFreq": 7,
-      "feedMonths": [4, 5, 6, 7, 8],
       "stage": "foliage",
-      "feedShort": "Осмокот High K (грунт) 1 раз в марте.",
-      "feedNote": "Осмокот High K — гранулы для цветения и роста корней. Вносится в грунт весной. Жидкие удобрения — очень осторожно.",
-      "warning": "ЯДОВИТ! Работать в перчатках.",
-      "toxicity": true,
-      "light": "максимум света",
-      "humidityPref": "низкая"
+      "flags": {
+        "active_growth": true
+      },
+      "feeds": [
+        {
+          "id": "osmocote_high_k",
+          "name": "Осмокот High K",
+          "dose": "1 внесение в грунт",
+          "intervalDays": 180,
+          "months": [3, 4],
+          "onlyStages": ["foliage"],
+          "note": "Весеннее внесение"
+        }
+      ]
     },
     {
       "id": "cactus-seeds",
@@ -36,14 +60,30 @@
       "category": "cactus",
       "location": "Юго-Запад (Полка B + Лампа)",
       "waterFreq": 4,
-      "feedMonths": [3, 4, 5, 6, 7, 8],
       "stage": "foliage",
-      "feedShort": "Янтарка и Bona Forte (по очереди, слабая доза).",
-      "feedNote": "Малышам нужна слабая еда. Янтарка — для иммунитета. Bona Forte — для роста. Дозу делить на 2 от инструкции на упаковке.",
-      "warning": "Не допускать полной засухи у малышей. Не опрыскивать.",
-      "toxicity": false,
-      "light": "максимум света",
-      "humidityPref": "низкая"
+      "flags": {
+        "active_growth": true
+      },
+      "feeds": [
+        {
+          "id": "succinic",
+          "name": "Янтарка",
+          "dose": "1/2 от инструкции",
+          "intervalDays": 14,
+          "months": [3, 4, 5, 6, 7, 8],
+          "onlyStages": ["foliage"],
+          "note": "По слабой схеме"
+        },
+        {
+          "id": "bona_forte",
+          "name": "Bona Forte",
+          "dose": "1/2 от инструкции",
+          "intervalDays": 14,
+          "months": [3, 4, 5, 6, 7, 8],
+          "onlyStages": ["foliage"],
+          "note": "Чередовать с янтаркой"
+        }
+      ]
     },
     {
       "id": "pomegranate-mini",
@@ -51,14 +91,21 @@
       "category": "fruit",
       "location": "Юго-Запад (Полка B)",
       "waterFreq": 7,
-      "feedMonths": [3, 4, 5],
       "stage": "dormant",
-      "feedShort": "В покое — ТОЛЬКО ВОДА. Осмокот в марте.",
-      "feedNote": "Сейчас растение спит, удобрения запрещены (сожжете корни). В марте, когда начнутся листочки, внести Осмокот в грунт.",
-      "warning": "Листопадное дерево! В марте нужна обрезка.",
-      "toxicity": false,
-      "light": "юго-запад",
-      "humidityPref": "средняя"
+      "flags": {
+        "active_growth": false
+      },
+      "feeds": [
+        {
+          "id": "osmocote",
+          "name": "Осмокот",
+          "dose": "1 внесение в грунт",
+          "intervalDays": 180,
+          "months": [3, 4],
+          "onlyStages": ["foliage"],
+          "note": "Только после выхода из покоя"
+        }
+      ]
     },
     {
       "id": "violets",
@@ -66,14 +113,32 @@
       "category": "flower",
       "location": "СВ/под лампой (по факту)",
       "waterFreq": 4,
-      "feedMonths": [1, 2, 3, 4, 5, 6, 7, 8],
       "stage": "bloom",
-      "feedShort": "Акварин (½ дозы) раз в 2 недели. По бутонам — МКФ.",
-      "feedNote": "Акварин — базовая еда, делайте половину дозы от инструкции. МКФ (Калий+Фосфор) — для яркого цветения, когда есть бутоны.",
-      "warning": "Лучше недокормить, чем перелить удобрения.",
-      "toxicity": false,
-      "light": "восток или лампа 5000–6500K",
-      "humidityPref": "высокая"
+      "flags": {
+        "buds": true,
+        "active_growth": true
+      },
+      "feeds": [
+        {
+          "id": "akvarin",
+          "name": "Акварин",
+          "dose": "1/2 дозы",
+          "intervalDays": 14,
+          "months": [1, 2, 3, 4, 5, 6, 7, 8],
+          "onlyStages": ["foliage", "bloom"],
+          "note": "Базовая подкормка"
+        },
+        {
+          "id": "mkf",
+          "name": "МКФ",
+          "dose": "1/2 дозы",
+          "intervalDays": 14,
+          "months": [1, 2, 3, 4, 5, 6, 7, 8],
+          "onlyStages": ["bloom"],
+          "conditions": ["buds"],
+          "note": "Только по бутонам"
+        }
+      ]
     },
     {
       "id": "orchid-ok",
@@ -81,14 +146,31 @@
       "category": "orchid",
       "location": "СВ/ЮЗ (по факту)",
       "waterFreq": 7,
-      "feedMonths": [2, 3, 4, 5, 6, 7, 8],
       "stage": "foliage",
-      "feedShort": "Акварин (½ дозы) раз в 3 недели. Редко МКФ.",
-      "feedNote": "Орхидеи любят «попить», но не любят «поесть». Удобрений вливать совсем чуть-чуть. МКФ — только если есть цветонос.",
-      "warning": "Следить за клещом при сухости.",
-      "toxicity": false,
-      "light": "рассеянный яркий свет",
-      "humidityPref": "высокая"
+      "flags": {
+        "flower_spike": false,
+        "active_growth": true
+      },
+      "feeds": [
+        {
+          "id": "akvarin",
+          "name": "Акварин",
+          "dose": "1/2 дозы",
+          "intervalDays": 21,
+          "months": [2, 3, 4, 5, 6, 7, 8],
+          "onlyStages": ["foliage", "bloom"],
+          "note": "Очень слабо"
+        },
+        {
+          "id": "mkf",
+          "name": "МКФ",
+          "dose": "1/4–1/2 дозы",
+          "intervalDays": 21,
+          "months": [2, 3, 4, 5, 6, 7, 8],
+          "conditions": ["flower_spike"],
+          "note": "Только если есть цветонос"
+        }
+      ]
     },
     {
       "id": "gloxinia",
@@ -96,14 +178,29 @@
       "category": "flower",
       "location": "СВ / под лампой",
       "waterFreq": 4,
-      "feedMonths": [2, 3, 4, 5, 6, 7],
       "stage": "foliage",
-      "feedShort": "Акварин раз в 2 недели. По бутонам — МКФ.",
-      "feedNote": "В период роста зелени — Акварин. Как появились бутоны — МКФ (для цветения). Не заливать клубень!",
-      "warning": "Полив строго по краю горшка, чтобы не сгнил клубень.",
-      "toxicity": false,
-      "light": "яркий рассеянный",
-      "humidityPref": "средняя"
+      "flags": {
+        "buds": false,
+        "active_growth": true
+      },
+      "feeds": [
+        {
+          "id": "akvarin",
+          "name": "Акварин",
+          "dose": "1/2 дозы",
+          "intervalDays": 14,
+          "months": [2, 3, 4, 5, 6, 7],
+          "onlyStages": ["foliage", "bloom"]
+        },
+        {
+          "id": "mkf",
+          "name": "МКФ",
+          "dose": "1/2 дозы",
+          "intervalDays": 14,
+          "months": [2, 3, 4, 5, 6, 7],
+          "conditions": ["buds"]
+        }
+      ]
     },
     {
       "id": "zamioculcas",
@@ -111,14 +208,20 @@
       "category": "succulent",
       "location": "Комната, рассеянный свет",
       "waterFreq": 7,
-      "feedMonths": [3, 4, 5, 6, 7, 8],
       "stage": "foliage",
-      "feedShort": "Слабая подкормка раз в месяц.",
-      "feedNote": "Растет медленно, еды нужно минимум. Осмокот можно при пересадке. Жидкими удобрениями — очень редко и слабо.",
-      "warning": "Главный враг — перелив. Лучше забыть полить.",
-      "toxicity": false,
-      "light": "рассеянный свет",
-      "humidityPref": "низкая"
+      "flags": {
+        "active_growth": true
+      },
+      "feeds": [
+        {
+          "id": "succulent_feed",
+          "name": "Подкормка для суккулентов",
+          "dose": "1/2 слабой дозы",
+          "intervalDays": 30,
+          "months": [3, 4, 5, 6, 7, 8],
+          "onlyStages": ["foliage"]
+        }
+      ]
     },
     {
       "id": "nolina",
@@ -126,14 +229,20 @@
       "category": "succulent",
       "location": "Светлое окно",
       "waterFreq": 12,
-      "feedMonths": [3, 4, 5, 6, 7],
       "stage": "foliage",
-      "feedShort": "Умеренно: раз в месяц.",
-      "feedNote": "Нолина запасает воду в «луковице». Удобрений нужно мало. Перекорм опасен.",
-      "warning": "Грунт должен просыхать полностью между поливами.",
-      "toxicity": false,
-      "light": "яркий свет",
-      "humidityPref": "низкая"
+      "flags": {
+        "active_growth": true
+      },
+      "feeds": [
+        {
+          "id": "succulent_feed",
+          "name": "Подкормка для суккулентов",
+          "dose": "1/2 слабой дозы",
+          "intervalDays": 30,
+          "months": [3, 4, 5, 6, 7],
+          "onlyStages": ["foliage"]
+        }
+      ]
     },
     {
       "id": "aloe",
@@ -141,14 +250,20 @@
       "category": "succulent",
       "location": "Светлое окно",
       "waterFreq": 10,
-      "feedMonths": [3, 4, 5, 6, 7, 8],
       "stage": "foliage",
-      "feedShort": "Слабая подкормка раз в месяц.",
-      "feedNote": "Алоэ неприхотлив. Половина дозы от обычного удобрения для суккулентов. Зимой не кормить.",
-      "warning": "Не переливать. Зимой почти сухо.",
-      "toxicity": true,
-      "light": "прямой свет",
-      "humidityPref": "низкая"
+      "flags": {
+        "active_growth": true
+      },
+      "feeds": [
+        {
+          "id": "succulent_feed",
+          "name": "Подкормка для суккулентов",
+          "dose": "1/2 дозы",
+          "intervalDays": 30,
+          "months": [3, 4, 5, 6, 7, 8],
+          "onlyStages": ["foliage"]
+        }
+      ]
     }
   ]
 }

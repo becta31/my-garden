@@ -4,17 +4,18 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![GitHub Actions](https://img.shields.io/badge/backend-GitHub%20Actions-black.svg)](https://github.com/features/actions)
 
-Умный Telegram-бот для домашнего сада. Напоминает о поливе, учитывает погоду и даёт советы от **Google Gemini**. Работает бесплатно через GitHub Actions — сервер не нужен.
+Telegram-бот для домашнего сада. Напоминает о поливе и подкормках, учитывает погоду и сохраняет историю напоминаний. Может работать через GitHub Actions, без отдельного сервера.
 
 ---
 
 ## ✨ Возможности
 
-- 🧠 **Память** — бот запоминает дату последнего полива и не беспокоит раньше времени.
-- 🤖 **ИИ-советы** — Google Gemini даёт рекомендации с учётом погоды и сезона.
-- 🌡 **Погода** — данные с OpenWeatherMap, учёт температуры и влажности.
-- 📅 **Гибкий график** — индивидуальная частота полива для каждого растения.
-- 🚀 **Бесплатно** — запускается по cron через GitHub Actions, без VPS и постоянно включённого компьютера.
+- 💧 **Напоминания о поливе** — бот проверяет интервал `waterFreq` для каждого растения.
+- 🧪 **Напоминания о подкормках** — поддерживаются разные схемы по сезонам, стадиям роста и условиям.
+- 🌡 **Учёт погоды** — используются данные OpenWeatherMap: температура, влажность, ветер.
+- 🧠 **Память** — бот хранит историю последних напоминаний в JSON-файлах.
+- 📅 **Гибкая настройка** — у каждого растения можно задать собственные параметры ухода.
+- 🚀 **Автозапуск** — проект подходит для запуска по расписанию через GitHub Actions.
 
 ---
 
@@ -22,10 +23,21 @@
 
 | Файл | Описание |
 | :--- | :--- |
-| `send_tasks.py` | Ядро: проверка расписания, погода, запрос к ИИ, отправка в Telegram |
-| `plants.json` | База растений: частота полива (`waterFreq`), стадия роста (`stage`) |
-| `history.json` | Память бота: даты последних поливов |
-| `last_weather.json` | Кэш температуры для отслеживания резких изменений |
+| `send_tasks.py` | Основной скрипт: проверка расписания, погоды, формирование сообщения, отправка в Telegram |
+| `plants.json` | База растений: частота полива, стадия, условия и схемы подкормок |
+| `history.json` | История напоминаний о поливе |
+| `feed_history.json` | История напоминаний о подкормках |
+| `last_weather.json` | Кэш последней температуры |
+
+---
+
+## ⚙️ Как это работает
+
+1. Скрипт загружает список растений из `plants.json`.
+2. Проверяет, прошло ли достаточно дней с последнего напоминания.
+3. Получает текущую погоду из OpenWeatherMap.
+4. Формирует текст отчёта для Telegram.
+5. После успешной отправки обновляет `history.json`, `feed_history.json` и `last_weather.json`.
 
 ---
 
@@ -37,31 +49,101 @@
 
 ### 2. Добавьте секреты
 
-Перейдите в **Settings → Secrets and variables → Actions → New repository secret** и добавьте ключи из таблицы:
+Перейдите в **Settings → Secrets and variables → Actions → New repository secret** и добавьте значения:
 
 | Секрет | Описание |
 | :--- | :--- |
 | `TELEGRAM_TOKEN` | Токен бота от @BotFather |
-| `TELEGRAM_CHAT_ID` | Ваш Chat ID (узнать у @userinfobot) |
-| `OPENWEATHER_API_KEY` | Ключ с [openweathermap.org](https://openweathermap.org) |
-| `GEMINI_API_KEY` | Ключ с [aistudio.google.com](https://aistudio.google.com) |
+| `TELEGRAM_CHAT_ID` | Ваш Chat ID |
+| `OPENWEATHER_API_KEY` | Ключ OpenWeatherMap |
 | `CITY_NAME` | Название города, например `Moscow` |
 
 ### 3. Дайте права на запись
 
-Перейдите в **Settings → Actions → General → Workflow permissions**. Выберите **Read and write permissions** и нажмите **Save**. Это нужно, чтобы бот мог обновлять `history.json`.
+Перейдите в **Settings → Actions → General → Workflow permissions**. Выберите **Read and write permissions** и нажмите **Save**. Это нужно, чтобы бот мог обновлять JSON-файлы с историей.
 
 ### 4. Настройте растения
 
-Отредактируйте `plants.json`:
+Пример структуры `plants.json`:
 
 ```json
-[
-  {
-    "id": "lemon-tree",
-    "name": "Лимон",
-    "waterFreq": 4,
-    "stage": "active",
-    "feedShort": "Цитрусовое удобрение 1/4 дозы"
+{
+  "plants": [
+    {
+      "id": "lemon-tree",
+      "name": "Лимон",
+      "waterFreq": 4,
+      "stage": "foliage",
+      "flags": {
+        "active_growth": true
+      },
+      "feeds": [
+        {
+          "id": "succinic",
+          "name": "Янтарка",
+          "dose": "1/2 дозы",
+          "intervalDays": 30,
+          "months": [3, 4, 5, 6, 7, 8],
+          "onlyStages": ["foliage"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## ▶️ Запуск локально
+
+```bash
+python send_tasks.py
+```
+
+Перед запуском убедитесь, что установлены зависимости и заданы переменные окружения.
+
+---
+
+## 📝 Формат данных
+
+### `history.json`
+Хранит дату последнего напоминания о поливе:
+
+```json
+{
+  "lemon-tree": {
+    "last_reminded": "2026-03-30T07:15:00+00:00"
   }
-]
+}
+```
+
+### `feed_history.json`
+Хранит дату последнего напоминания о подкормке:
+
+```json
+{
+  "lemon-tree": {
+    "succinic": {
+      "last_done": "2026-03-20T08:00:00+00:00"
+    }
+  }
+}
+```
+
+---
+
+## 🔧 Зависимости
+
+Минимум нужен Python 3.12+ и библиотека `requests`.
+
+Установка:
+
+```bash
+pip install requests
+```
+
+---
+
+## 📌 Примечание
+
+Сейчас проект использует локальную логику правил и погодные данные. В текущей версии интеграции с Google Gemini в коде нет.

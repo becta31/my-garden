@@ -15,7 +15,7 @@ def get_ai_comment(prompt: str):
                 "Content-Type": "application/json",
             },
             json={
-                "model": "openrouter/free",
+                "model": "z-ai/glm-4.5-air:free",
                 "messages": [
                     {
                         "role": "system",

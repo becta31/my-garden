@@ -5,6 +5,7 @@ import requests
 def get_ai_comment(prompt: str):
     api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
     if not api_key:
+        print("AI debug: OPENROUTER_API_KEY missing")
         return None
 
     try:
@@ -26,10 +27,6 @@ def get_ai_comment(prompt: str):
                         "content": prompt
                     }
                 ],
-                "reasoning": {
-                    "enabled": True,
-                    "exclude": True
-                },
                 "temperature": 0.0,
                 "top_p": 0.5,
                 "max_tokens": 24
@@ -37,21 +34,29 @@ def get_ai_comment(prompt: str):
             timeout=12,
         )
 
+        print(f"AI debug: status={response.status_code}")
+
         if response.status_code == 429:
-            print("AI rate-limited by OpenRouter (429)")
+            print("AI debug: rate-limited")
             return None
 
         response.raise_for_status()
         data = response.json()
+        print(f"AI debug: response={data}")
+
         choices = data.get("choices", [])
         if not choices:
+            print("AI debug: no choices")
             return None
 
         message = choices[0].get("message", {})
         content = message.get("content")
         if isinstance(content, str):
             text = content.strip()
+            print(f"AI debug: content={text!r}")
             return text or None
+
+        print("AI debug: content missing or not string")
         return None
 
     except Exception as e:

@@ -1,5 +1,6 @@
 import os
 import requests
+import json
 
 
 def get_ai_comment(prompt: str):
@@ -9,29 +10,31 @@ def get_ai_comment(prompt: str):
         return None
 
     try:
+        payload = {
+            "model": "meta-llama/llama-3.2-3b-instruct:free",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Ты бот-агроном. Дай одну короткую полезную фразу по уходу за комнатными растениями сегодня."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.2,
+            "top_p": 0.7,
+            "max_tokens": 100
+        }
+
         response = requests.post(
             url="https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            json={
-                "model": "z-ai/glm-4.5-air:free",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "Ответь по-русски одной очень короткой полезной фразой для ухода за комнатными растениями сегодня."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "temperature": 0.0,
-                "top_p": 0.5,
-                "max_tokens": 24
-            },
-            timeout=12,
+            data=json.dumps(payload),
+            timeout=15,
         )
 
         print(f"AI debug: status={response.status_code}")

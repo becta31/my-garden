@@ -10,7 +10,6 @@ def get_ai_comment(prompt: str):
     system_prompt = (
         "Ты помощник по уходу за КОМНАТНЫМИ растениями в помещении. "
         "Отвечай только по-русски. "
-        "Начинай ответ с фразы: 'Блок для настройки:'. "
         "Дай максимум 1 короткую практическую фразу для сегодняшнего ухода. "
         "Если полезного совета нет, верни пустую строку. "
         "Используй только переданные данные о погоде, сезоне и общем состоянии. "
@@ -41,14 +40,17 @@ def get_ai_comment(prompt: str):
                         "content": prompt,
                     },
                 ],
-                "reasoning": {
-                    "enabled": True
-                },
-                "max_tokens": 80,
-                "temperature": 0.2,
+                "temperature": 0.1,
+                "top_p": 0.7,
+                "max_tokens": 40,
             },
-            timeout=20,
+            timeout=15,
         )
+
+        if response.status_code == 429:
+            print("AI rate-limited by OpenRouter (429)")
+            return None
+
         response.raise_for_status()
         data = response.json()
 
@@ -60,8 +62,6 @@ def get_ai_comment(prompt: str):
         content = message.get("content")
         if isinstance(content, str):
             text = content.strip()
-            if text.startswith("Блок для настройки:"):
-                text = text.replace("Блок для настройки:", "", 1).strip()
             return text or None
         return None
 
